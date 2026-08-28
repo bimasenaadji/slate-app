@@ -73,10 +73,10 @@ lib/
 
 ```bash
 # 1. Clone repositori ini
-git clone https://github.com/USERNAME/slate.git
+git clone https://github.com/bimasenaadji/slate-app.git
 
 # 2. Masuk ke direktori proyek
-cd slate
+cd slate-app
 
 # 3. Unduh semua dependensi
 flutter pub get

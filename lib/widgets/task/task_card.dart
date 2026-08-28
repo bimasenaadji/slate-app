@@ -1,21 +1,39 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme.dart';
 import '../../core/constants.dart';
 import '../../models/task_model.dart';
+import '../dialogs/task_dialog.dart';
 
 class TaskCard extends StatelessWidget {
   final TaskModel task;
   final VoidCallback onToggle;
   final VoidCallback onDelete;
+  final ValueChanged<String> onEdit;
 
   const TaskCard({
     super.key,
     required this.task,
     required this.onToggle,
     required this.onDelete,
+    required this.onEdit,
   });
+
+  void _openEditDialog(BuildContext context) {
+    if (task.isDone) return; // Do not edit already completed tasks
+
+    // 1. Tactile haptic feedback
+    HapticFeedback.selectionClick();
+
+    // 2. Open centered focused spotlight edit dialog with frosted glass backdrop
+    TaskDialog.showEdit(
+      context,
+      initialTitle: task.title,
+      onSave: onEdit,
+    );
+  }
 
   String _formatDateTime(DateTime dateTime) {
     try {
@@ -77,88 +95,95 @@ class TaskCard extends StatelessWidget {
             ],
           ),
 
-          // Main Card Content
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            decoration: BoxDecoration(
-              color: task.isDone
-                  ? AppColors.surfaceCard.withValues(alpha: 0.25)
-                  : AppColors.surfaceCard,
-              borderRadius: BorderRadius.circular(AppShapes.radiusLg),
-              boxShadow: AppShapes.shadowSoftSm,
-              border: Border.all(
+          // Main Card with Long-Press to Open Focused Spotlight Edit Mode
+          child: GestureDetector(
+            onLongPress: () => _openEditDialog(context),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              decoration: BoxDecoration(
                 color: task.isDone
-                    ? Colors.white.withValues(alpha: 0.15)
-                    : Colors.white.withValues(alpha: 0.45),
-                width: 1.5,
+                    ? AppColors.surfaceCard.withValues(alpha: 0.25)
+                    : AppColors.surfaceCard,
+                borderRadius: BorderRadius.circular(AppShapes.radiusLg),
+                boxShadow: AppShapes.shadowSoftSm,
+                border: Border.all(
+                  color: task.isDone
+                      ? Colors.white.withValues(alpha: 0.15)
+                      : Colors.white.withValues(alpha: 0.45),
+                  width: 1.5,
+                ),
               ),
-            ),
-            padding: const EdgeInsets.all(AppConstants.paddingMd),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Custom Interactive Checklist Circle
-                GestureDetector(
-                  onTap: onToggle,
-                  behavior: HitTestBehavior.opaque,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: 26,
-                    height: 26,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: task.isDone
-                          ? AppColors.successSoft
-                          : Colors.transparent,
-                      border: Border.all(
+              padding: const EdgeInsets.all(AppConstants.paddingMd),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Interactive Checklist Circle
+                  GestureDetector(
+                    onTap: onToggle,
+                    behavior: HitTestBehavior.opaque,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 26,
+                      height: 26,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
                         color: task.isDone
-                            ? AppColors.successBold
-                            : AppColors.line,
-                        width: 2,
-                      ),
-                    ),
-                    child: task.isDone
-                        ? const Center(
-                            child: Icon(
-                              Icons.check,
-                              size: 16,
-                              color: AppColors.successBold,
-                            ),
-                          )
-                        : null,
-                  ),
-                ),
-                const SizedBox(width: AppConstants.paddingMd),
-
-                // Task Title and Creation Time
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        task.title,
-                        style: AppTypography.bodyPrimary.copyWith(
+                            ? AppColors.successSoft
+                            : Colors.transparent,
+                        border: Border.all(
                           color: task.isDone
-                              ? AppColors.textSecondary.withValues(alpha: 0.5)
-                              : AppColors.textPrimary,
-                          decoration: task.isDone
-                              ? TextDecoration.lineThrough
-                              : null,
+                              ? AppColors.successBold
+                              : AppColors.line,
+                          width: 2,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _formatDateTime(task.createdAt),
-                        style: AppTypography.captionSecondary.copyWith(
-                          fontSize: 12,
-                          color: AppColors.textSecondary.withValues(alpha: 0.8),
-                        ),
-                      ),
-                    ],
+                      child: task.isDone
+                          ? const Center(
+                              child: Icon(
+                                Icons.check,
+                                size: 16,
+                                color: AppColors.successBold,
+                              ),
+                            )
+                          : null,
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: AppConstants.paddingMd),
+
+                  // Task Title and Creation Time
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          task.title,
+                          style: AppTypography.bodyPrimary.copyWith(
+                            color: task.isDone
+                                ? AppColors.textSecondary.withValues(
+                                    alpha: 0.5,
+                                  )
+                                : AppColors.textPrimary,
+                            decoration: task.isDone
+                                ? TextDecoration.lineThrough
+                                : null,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _formatDateTime(task.createdAt),
+                          style: AppTypography.captionSecondary.copyWith(
+                            fontSize: 12,
+                            color: AppColors.textSecondary.withValues(
+                              alpha: 0.8,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

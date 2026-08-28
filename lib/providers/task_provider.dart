@@ -109,6 +109,24 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
     state = [task, ...state];
   }
 
+  // Update task title (Edit Task)
+  void updateTask(String id, String newTitle) {
+    final trimmed = newTitle.trim();
+    if (trimmed.isEmpty) return;
+
+    state = [
+      for (final task in state)
+        if (task.id == id)
+          (() {
+            final updated = task.copyWith(title: trimmed);
+            _box.put(id, updated.toMap());
+            return updated;
+          })()
+        else
+          task,
+    ];
+  }
+
   // Toggle completion status of a task
   void toggleTask(String id) {
     state = [

@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../core/constants.dart';
 import '../providers/task_provider.dart';
-import '../widgets/dialogs/add_task_dialog.dart';
+import '../widgets/dialogs/task_dialog.dart';
 import '../widgets/home/home_header.dart';
 import '../widgets/home/progress_chip.dart';
 import '../widgets/home/bottom_pull_indicator.dart';
@@ -26,7 +26,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   void _openAddTaskModal() {
     HapticFeedback.mediumImpact();
-    AddTaskDialog.show(context, (title) {
+    TaskDialog.showCreate(context, onAdd: (title) {
       ref.read(taskProvider.notifier).addTask(title);
     });
   }
@@ -54,11 +54,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final completedCount = tasks.where((t) => t.isDone).length;
     final totalCount = tasks.length;
 
-    return Scaffold(
-      backgroundColor: AppColors.bgMain,
-      body: SafeArea(
-        child: Stack(
-          children: [
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).unfocus(),
+      behavior: HitTestBehavior.translucent,
+      child: Scaffold(
+        backgroundColor: AppColors.bgMain,
+        body: SafeArea(
+          child: Stack(
+            children: [
             // Pointer Listener detects finger release immediately
             Listener(
               onPointerUp: (_) => _handlePointerRelease(),
@@ -141,6 +144,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               task: task,
                               onToggle: () => notifier.toggleTask(task.id),
                               onDelete: () => notifier.deleteTask(task.id),
+                              onEdit: (newTitle) =>
+                                  notifier.updateTask(task.id, newTitle),
                             );
                           }, childCount: tasks.length),
                         ),
@@ -163,6 +168,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

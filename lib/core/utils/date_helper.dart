@@ -23,4 +23,14 @@ class DateHelper {
       return DateFormat('EEEE, d MMMM').format(DateTime.now());
     }
   }
+
+  // Formats tomorrow date to Indonesian e.g., "Rabu, 26 Agustus"
+  static String formatTomorrowDate() {
+    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    try {
+      return DateFormat('EEEE, d MMMM', 'id_ID').format(tomorrow);
+    } catch (e) {
+      return DateFormat('EEEE, d MMMM').format(tomorrow);
+    }
+  }
 }

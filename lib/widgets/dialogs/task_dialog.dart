@@ -3,19 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants.dart';
 
-enum TaskDialogMode { create, edit }
-
-/// Unified, reusable dialog for both creating and editing tasks (DRY Principle)
+/// Modal dialog with frosted glass backdrop for creating a new task
 class TaskDialog extends StatefulWidget {
-  final TaskDialogMode mode;
-  final String? initialTitle;
-  final ValueChanged<String> onSubmit;
+  final ValueChanged<String> onAdd;
 
   const TaskDialog({
     super.key,
-    required this.mode,
-    this.initialTitle,
-    required this.onSubmit,
+    required this.onAdd,
   });
 
   /// Displays the task creation dialog
@@ -23,48 +17,13 @@ class TaskDialog extends StatefulWidget {
     BuildContext context, {
     required ValueChanged<String> onAdd,
   }) {
-    _show(
-      context,
-      mode: TaskDialogMode.create,
-      onSubmit: onAdd,
-    );
-  }
-
-  /// Displays the task edit dialog
-  static void showEdit(
-    BuildContext context, {
-    required String initialTitle,
-    required ValueChanged<String> onSave,
-  }) {
-    _show(
-      context,
-      mode: TaskDialogMode.edit,
-      initialTitle: initialTitle,
-      onSubmit: onSave,
-    );
-  }
-
-  static void _show(
-    BuildContext context, {
-    required TaskDialogMode mode,
-    String? initialTitle,
-    required ValueChanged<String> onSubmit,
-  }) {
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
-      barrierLabel: mode == TaskDialogMode.create
-          ? AppConstants.newNoteTitle
-          : AppConstants.editNoteTitle,
+      barrierLabel: AppConstants.newNoteTitle,
       barrierColor: Colors.black.withValues(alpha: 0.14),
       transitionDuration: const Duration(milliseconds: 220),
-      pageBuilder: (context, anim1, anim2) {
-        return TaskDialog(
-          mode: mode,
-          initialTitle: initialTitle,
-          onSubmit: onSubmit,
-        );
-      },
+      pageBuilder: (context, anim1, anim2) => TaskDialog(onAdd: onAdd),
       transitionBuilder: (context, animation, secondaryAnimation, child) {
         final curvedValue = Curves.easeOutCubic.transform(animation.value);
         return BackdropFilter(
@@ -90,24 +49,13 @@ class TaskDialog extends StatefulWidget {
 }
 
 class _TaskDialogState extends State<TaskDialog> {
-  late final TextEditingController _controller;
+  final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
-
-  bool get _isEditMode => widget.mode == TaskDialogMode.edit;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.initialTitle ?? '');
-
-    // For edit mode, position cursor at the very end of the string
-    if (_isEditMode && _controller.text.isNotEmpty) {
-      _controller.selection = TextSelection.fromPosition(
-        TextPosition(offset: _controller.text.length),
-      );
-    }
-
-    // Auto-focus input field and pop up keyboard smoothly
+    // Auto-focus input field and open keyboard smoothly
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _focusNode.requestFocus();
@@ -125,10 +73,7 @@ class _TaskDialogState extends State<TaskDialog> {
   void _submit() {
     final text = _controller.text.trim();
     if (text.isNotEmpty) {
-      // In edit mode, only trigger if modified; in create mode, always trigger
-      if (!_isEditMode || text != widget.initialTitle) {
-        widget.onSubmit(text);
-      }
+      widget.onAdd(text);
     }
     Navigator.of(context).pop();
   }
@@ -167,9 +112,7 @@ class _TaskDialogState extends State<TaskDialog> {
               children: [
                 // Modal Title
                 Text(
-                  _isEditMode
-                      ? AppConstants.editNoteTitle
-                      : AppConstants.newNoteTitle,
+                  AppConstants.newNoteTitle,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -194,7 +137,7 @@ class _TaskDialogState extends State<TaskDialog> {
                   maxLines: 4,
                   minLines: 1,
                   decoration: InputDecoration(
-                    hintText: _isEditMode ? null : AppConstants.inputPlaceholder,
+                    hintText: AppConstants.inputPlaceholder,
                     hintStyle: GoogleFonts.plusJakartaSans(
                       fontSize: 15,
                       fontWeight: FontWeight.w400,

@@ -4,7 +4,6 @@ class AppConstants {
   static const String emptyStateSubtitle =
       'Tarik ke atas untuk mencatat.';
   static const String newNoteTitle = 'Catatan baru';
-  static const String editNoteTitle = 'Perbaiki catatan...';
   static const String inputPlaceholder = 'Tulis apa yang ada di pikiranmu...';
   static const String pullTip = 'Tarik ke bawah untuk menambah tugas';
   static const String releaseTip = 'Lepaskan untuk membuka';

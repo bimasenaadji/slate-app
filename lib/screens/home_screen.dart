@@ -240,6 +240,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                 key: ValueKey(task.id),
                                 index: index,
                                 child: TaskCard(
+                                  key: ValueKey('task_card_${task.id}'),
                                   task: task,
                                   onToggle: () {
                                     final willBeDone = !task.isDone;

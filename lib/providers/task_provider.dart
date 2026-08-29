@@ -8,12 +8,32 @@ final taskBoxProvider = Provider<Box>((ref) {
   return Hive.box('tasks');
 });
 
-// Provider for the TaskNotifier
+// Provider for the TaskNotifier (Today's Tasks)
 final taskProvider = StateNotifierProvider<TaskNotifier, List<TaskModel>>((
   ref,
 ) {
   final box = ref.watch(taskBoxProvider);
   return TaskNotifier(box);
+});
+
+// Provider for the Tomorrow Tasks (H+1 Queue)
+final tomorrowTasksProvider = Provider<List<TaskModel>>((ref) {
+  ref.watch(taskProvider); // Triggers re-computation when tasks are modified
+  final box = ref.watch(taskBoxProvider);
+  final List<TaskModel> list = [];
+  for (var key in box.keys) {
+    final map = box.get(key);
+    if (map != null && map is Map) {
+      try {
+        final task = TaskModel.fromMap(map);
+        if (task.scheduledDate != null) {
+          list.add(task);
+        }
+      } catch (_) {}
+    }
+  }
+  list.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+  return list;
 });
 
 class TaskNotifier extends StateNotifier<List<TaskModel>> {
@@ -161,7 +181,7 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
         isCarriedOver: false,
       );
       _box.put(task.id, task.toMap());
-      // Do not add to state (Tomorrow Queue is hidden from today's list)
+      state = [...state]; // Triggers tomorrowTasksProvider update
       return;
     }
 
@@ -210,18 +230,22 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
     final trimmed = newTitle.trim();
     if (trimmed.isEmpty) return;
 
+    final existingMap = _box.get(id);
+    if (existingMap != null && existingMap is Map) {
+      try {
+        final existingTask = TaskModel.fromMap(existingMap);
+        final updated = existingTask.copyWith(
+          title: trimmed,
+          isCarriedOver: false,
+        );
+        _box.put(id, updated.toMap());
+      } catch (_) {}
+    }
+
     state = [
       for (final task in state)
         if (task.id == id)
-          (() {
-            // Re-activate: reset isCarriedOver flag when edited
-            final updated = task.copyWith(
-              title: trimmed,
-              isCarriedOver: false,
-            );
-            _box.put(id, updated.toMap());
-            return updated;
-          })()
+          task.copyWith(title: trimmed, isCarriedOver: false)
         else
           task,
     ];
@@ -242,7 +266,7 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
     ];
   }
 
-  // Delete a task
+  // Delete a task (from both Today and Tomorrow queue)
   void deleteTask(String id) {
     _box.delete(id);
     state = state.where((task) => task.id != id).toList();
@@ -250,11 +274,15 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
 
   // Restore a previously deleted task at its exact orderIndex (Undo Action)
   void restoreTask(TaskModel task) {
-    if (state.any((t) => t.id == task.id)) return; // Prevent duplicate restoration
-    final updatedList = [...state, task];
-    updatedList.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
     _box.put(task.id, task.toMap());
-    state = updatedList;
+    if (task.scheduledDate == null) {
+      if (state.any((t) => t.id == task.id)) return;
+      final updatedList = [...state, task];
+      updatedList.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+      state = updatedList;
+    } else {
+      state = [...state]; // Trigger tomorrowTasksProvider update
+    }
   }
 
   @override

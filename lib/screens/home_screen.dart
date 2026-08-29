@@ -11,6 +11,7 @@ import '../widgets/home/progress_chip.dart';
 import '../widgets/home/bottom_pull_indicator.dart';
 import '../widgets/task/empty_state.dart';
 import '../widgets/task/task_card.dart';
+import '../widgets/tomorrow/tomorrow_sheet.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -91,19 +92,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     _isModalOpen = true;
 
     HapticFeedback.mediumImpact();
-    TaskDialog.showCreate(context, onAdd: (title, isForTomorrow) {
-      ref
-          .read(taskProvider.notifier)
-          .addTask(title, isForTomorrow: isForTomorrow);
-      if (isForTomorrow) {
-        UndoSnackBar.show(
-          context,
-          message: 'Disimpan untuk besok.',
-          onUndo: () {},
-          duration: const Duration(seconds: 2),
-        );
-      }
-    }).whenComplete(() {
+    TaskDialog.showCreate(
+      context,
+      onAdd: (title, isForTomorrow) {
+        ref
+            .read(taskProvider.notifier)
+            .addTask(title, isForTomorrow: isForTomorrow);
+        if (isForTomorrow) {
+          UndoSnackBar.show(
+            context,
+            message: 'Disimpan untuk besok.',
+            onUndo: () {},
+            duration: const Duration(seconds: 2),
+          );
+        }
+      },
+    ).whenComplete(() {
       if (mounted) {
         _isModalOpen = false;
       }
@@ -132,9 +136,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
   }
 
+  void _openTomorrowSheet() {
+    TomorrowSheet.show(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     final tasks = ref.watch(taskProvider);
+    final tomorrowTasks = ref.watch(tomorrowTasksProvider);
     final notifier = ref.read(taskProvider.notifier);
 
     final completedCount = tasks.where((t) => t.isDone).length;
@@ -210,9 +219,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           parent: BouncingScrollPhysics(),
                         ),
                         slivers: [
-                          // 1. Header Section (Greeting, Date, & Plus Button)
+                          // 1. Header Section (Clean Date & Tomorrow Moon Peek Button)
                           HomeHeader(
                             onAddTap: _openAddTaskModal,
+                            onTomorrowTap: _openTomorrowSheet,
+                            tomorrowTaskCount: tomorrowTasks.length,
                           ),
 
                           // 2. Dynamic Progress Counter Badge
@@ -288,8 +299,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                       TaskDialog.showEdit(
                                         context,
                                         initialText: task.title,
-                                        onSave: (newTitle) =>
-                                            notifier.updateTask(task.id, newTitle),
+                                        onSave: (newTitle) => notifier
+                                            .updateTask(task.id, newTitle),
                                       ).whenComplete(() {
                                         if (mounted) {
                                           _isModalOpen = false;

@@ -5,8 +5,13 @@ import '../../core/utils/date_helper.dart';
 
 class HomeHeader extends StatelessWidget {
   final VoidCallback onAddTap;
+  final VoidCallback? onLongPress;
 
-  const HomeHeader({super.key, required this.onAddTap});
+  const HomeHeader({
+    super.key,
+    required this.onAddTap,
+    this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -22,10 +27,13 @@ class HomeHeader extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Greeting and Date
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+            // Greeting and Date (Long press to test carry-over)
+            GestureDetector(
+              onLongPress: onLongPress,
+              behavior: HitTestBehavior.opaque,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                 Text(
                   DateHelper.getGreeting(),
                   style: GoogleFonts.plusJakartaSans(
@@ -46,8 +54,9 @@ class HomeHeader extends StatelessWidget {
                 ),
               ],
             ),
+          ),
 
-            // Add Action Button
+          // Add Action Button
             GestureDetector(
               onTap: onAddTap,
               child: Container(

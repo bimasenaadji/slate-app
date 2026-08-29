@@ -26,7 +26,7 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
     _startMidnightTimer();
   }
 
-  // Load existing tasks from Box and remove tasks created on previous days (Clean Slate)
+  // Load existing tasks from Box and execute Clean Slate & Carry-Over rules
   void _loadTasksAndCheckMidnight() {
     final now = DateTime.now();
     final List<TaskModel> allTasks = [];
@@ -38,12 +38,20 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
         try {
           final task = TaskModel.fromMap(map);
           if (_isBeforeToday(task.createdAt, now)) {
-            keysToDelete.add(key);
+            if (task.isDone) {
+              // 1. Purge completed tasks from yesterday (Clean Slate)
+              keysToDelete.add(key);
+            } else {
+              // 2. Automatic Carry-Over: Save active incomplete tasks with visual demotion
+              final carriedOverTask = task.copyWith(isCarriedOver: true);
+              _box.put(key, carriedOverTask.toMap());
+              allTasks.add(carriedOverTask);
+            }
           } else {
             allTasks.add(task);
           }
         } catch (e) {
-          // If formatting is invalid, delete it to maintain a clean slate
+          // If formatting is invalid, delete it to maintain data integrity
           keysToDelete.add(key);
         }
       }
@@ -64,7 +72,7 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
     _loadTasksAndCheckMidnight();
   }
 
-  // Timer to check for day transition while the app is active
+  // Timer to check for day transition while the app is actively running
   void _startMidnightTimer() {
     _midnightTimer?.cancel();
     _midnightTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
@@ -73,7 +81,7 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
           now.month != _lastCheckedDay.month ||
           now.year != _lastCheckedDay.year) {
         _lastCheckedDay = now;
-        _clearAllTasks();
+        _loadTasksAndCheckMidnight();
       }
     });
   }
@@ -90,12 +98,6 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
             localDate.day < localToday.day);
   }
 
-  // Clear all tasks (for midnight cleanup)
-  void _clearAllTasks() {
-    _box.clear();
-    state = [];
-  }
-
   // Add a new task at the top of the priority list
   void addTask(String title) {
     if (title.trim().isEmpty) return;
@@ -109,6 +111,7 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
       title: title.trim(),
       createdAt: DateTime.now(),
       orderIndex: minOrder - 1,
+      isCarriedOver: false,
     );
     _box.put(task.id, task.toMap());
     state = [task, ...state];
@@ -139,7 +142,7 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
     state = persistedList;
   }
 
-  // Update task title (Edit Task)
+  // Update task title (Edit Task) & Re-activate Carry-Over task
   void updateTask(String id, String newTitle) {
     final trimmed = newTitle.trim();
     if (trimmed.isEmpty) return;
@@ -148,7 +151,11 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
       for (final task in state)
         if (task.id == id)
           (() {
-            final updated = task.copyWith(title: trimmed);
+            // Re-activate: reset isCarriedOver flag when edited
+            final updated = task.copyWith(
+              title: trimmed,
+              isCarriedOver: false,
+            );
             _box.put(id, updated.toMap());
             return updated;
           })()
@@ -185,6 +192,26 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
     updatedList.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
     _box.put(task.id, task.toMap());
     state = updatedList;
+  }
+
+  // Helper for quick testing of carry-over & purge logic
+  void debugInjectCarryOverSample() {
+    final yesterday = DateTime.now().subtract(const Duration(days: 1));
+    final task1 = TaskModel(
+      id: 'debug_active_${DateTime.now().millisecondsSinceEpoch}',
+      title: 'Tugas kemarin belum selesai',
+      createdAt: yesterday,
+      isDone: false,
+    );
+    final task2 = TaskModel(
+      id: 'debug_done_${DateTime.now().millisecondsSinceEpoch}',
+      title: 'Tugas kemarin sudah selesai',
+      createdAt: yesterday,
+      isDone: true,
+    );
+    _box.put(task1.id, task1.toMap());
+    _box.put(task2.id, task2.toMap());
+    _loadTasksAndCheckMidnight();
   }
 
   @override

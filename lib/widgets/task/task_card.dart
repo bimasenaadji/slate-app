@@ -102,11 +102,24 @@ class _TaskCardState extends State<TaskCard> {
     _focusNode.unfocus();
   }
 
+  Color get _titleColor {
+    if (widget.task.isDone) {
+      return AppColors.textSecondary.withValues(alpha: 0.5);
+    }
+    if (widget.task.isCarriedOver) {
+      return AppColors.textSecondary; // Muted grey #81838A for visual demotion
+    }
+    return AppColors.textPrimary; // Deep dark #1A1B20 for active today tasks
+  }
+
   String _formatDateTime(DateTime dateTime) {
     try {
-      return DateFormat('EEEE, d MMMM • HH:mm', 'id_ID').format(dateTime);
+      final formatted =
+          DateFormat('EEEE, d MMMM • HH:mm', 'id_ID').format(dateTime);
+      return widget.task.isCarriedOver ? 'Sisa kemarin • $formatted' : formatted;
     } catch (e) {
-      return DateFormat('EEEE, d MMMM • HH:mm').format(dateTime);
+      final formatted = DateFormat('EEEE, d MMMM • HH:mm').format(dateTime);
+      return widget.task.isCarriedOver ? 'Sisa kemarin • $formatted' : formatted;
     }
   }
 
@@ -235,7 +248,9 @@ class _TaskCardState extends State<TaskCard> {
                           TextField(
                             controller: _controller,
                             focusNode: _focusNode,
-                            style: AppTypography.bodyPrimary,
+                            style: AppTypography.bodyPrimary.copyWith(
+                              color: AppColors.textPrimary,
+                            ),
                             textCapitalization: TextCapitalization.sentences,
                             textInputAction: TextInputAction.done,
                             maxLines: null,
@@ -252,11 +267,7 @@ class _TaskCardState extends State<TaskCard> {
                           Text(
                             widget.task.title,
                             style: AppTypography.bodyPrimary.copyWith(
-                              color: widget.task.isDone
-                                  ? AppColors.textSecondary.withValues(
-                                      alpha: 0.5,
-                                    )
-                                  : AppColors.textPrimary,
+                              color: _titleColor,
                               decoration: widget.task.isDone
                                   ? TextDecoration.lineThrough
                                   : null,

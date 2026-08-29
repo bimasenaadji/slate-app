@@ -15,31 +15,58 @@ class TaskDialog extends StatefulWidget {
     required this.onAdd,
   });
 
-  /// Displays the task creation dialog
-  static void showCreate(
+  /// Displays the task creation dialog with elastic spring overshoot physics
+  static Future<void> showCreate(
     BuildContext context, {
     required TaskAddCallback onAdd,
   }) {
-    showGeneralDialog(
+    return showGeneralDialog<void>(
       context: context,
       barrierDismissible: true,
       barrierLabel: AppConstants.newNoteTitle,
-      barrierColor: Colors.black.withValues(alpha: 0.14),
-      transitionDuration: const Duration(milliseconds: 220),
+      barrierColor: Colors.black.withValues(alpha: 0.16),
+      transitionDuration: const Duration(milliseconds: 380),
       pageBuilder: (context, anim1, anim2) => TaskDialog(onAdd: onAdd),
       transitionBuilder: (context, animation, secondaryAnimation, child) {
-        final curvedValue = Curves.easeOutCubic.transform(animation.value);
+        // Elastic spring curve with subtle overshoot and settle
+        final springCurvedAnimation = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutBack,
+          reverseCurve: Curves.easeInCubic,
+        );
+
+        // Slide up from bottom with spring physics
+        final slideAnimation = Tween<Offset>(
+          begin: const Offset(0.0, 0.22),
+          end: Offset.zero,
+        ).animate(springCurvedAnimation);
+
+        // Scale up from 0.88 with spring overshoot
+        final scaleAnimation = Tween<double>(
+          begin: 0.88,
+          end: 1.0,
+        ).animate(springCurvedAnimation);
+
+        // Gentle blur & fade
+        final fadeAnimation = CurvedAnimation(
+          parent: animation,
+          curve: const Interval(0.0, 0.65, curve: Curves.easeOut),
+          reverseCurve: Curves.easeIn,
+        );
+
         return BackdropFilter(
           filter: ImageFilter.blur(
             sigmaX: 8 * animation.value,
             sigmaY: 8 * animation.value,
           ),
-          child: Transform.scale(
-            scale: 0.92 + (0.08 * curvedValue),
-            alignment: Alignment.center,
-            child: Opacity(
-              opacity: animation.value.clamp(0.0, 1.0),
-              child: child,
+          child: SlideTransition(
+            position: slideAnimation,
+            child: ScaleTransition(
+              scale: scaleAnimation,
+              child: FadeTransition(
+                opacity: fadeAnimation,
+                child: child,
+              ),
             ),
           ),
         );
@@ -55,6 +82,7 @@ class _TaskDialogState extends State<TaskDialog> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   bool _isForTomorrow = false;
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -75,11 +103,15 @@ class _TaskDialogState extends State<TaskDialog> {
   }
 
   void _submit() {
+    if (_isSubmitting) return; // Prevent double-submit on rapid tap
     final text = _controller.text.trim();
     if (text.isNotEmpty) {
+      _isSubmitting = true;
       widget.onAdd(text, _isForTomorrow);
+      Navigator.of(context).pop();
+    } else {
+      Navigator.of(context).pop();
     }
-    Navigator.of(context).pop();
   }
 
   @override

@@ -53,9 +53,8 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
       _box.deleteAll(keysToDelete);
     }
 
-    // Sort tasks: put non-completed tasks on top, sorted by creation time (newest first)
-    // Actually, simple sorting by newest first is extremely clean.
-    allTasks.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    // Sort tasks primarily by user-defined orderIndex
+    allTasks.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
     state = allTasks;
   }
 
@@ -97,16 +96,47 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
     state = [];
   }
 
-  // Add a new task
+  // Add a new task at the top of the priority list
   void addTask(String title) {
     if (title.trim().isEmpty) return;
+    
+    final minOrder = state.isEmpty
+        ? 0
+        : state.map((t) => t.orderIndex).reduce((a, b) => a < b ? a : b);
+
     final task = TaskModel(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       title: title.trim(),
       createdAt: DateTime.now(),
+      orderIndex: minOrder - 1,
     );
     _box.put(task.id, task.toMap());
     state = [task, ...state];
+  }
+
+  // Reorder task priority position (Drag-and-Drop)
+  void reorderTasks(int oldIndex, int newIndex) {
+    if (oldIndex == newIndex ||
+        oldIndex < 0 ||
+        oldIndex >= state.length ||
+        newIndex < 0 ||
+        newIndex >= state.length) {
+      return;
+    }
+
+    final updatedList = List<TaskModel>.from(state);
+    final item = updatedList.removeAt(oldIndex);
+    updatedList.insert(newIndex, item);
+
+    // Normalize orderIndex and persist to Hive
+    final persistedList = <TaskModel>[];
+    for (int i = 0; i < updatedList.length; i++) {
+      final task = updatedList[i].copyWith(orderIndex: i);
+      _box.put(task.id, task.toMap());
+      persistedList.add(task);
+    }
+
+    state = persistedList;
   }
 
   // Update task title (Edit Task)

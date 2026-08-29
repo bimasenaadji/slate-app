@@ -19,11 +19,32 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with WidgetsBindingObserver {
   // Bottom pull-to-add drag state
   double _bottomPullDistance = 0.0;
   static const double _pullThreshold = 60.0;
   bool _hasReachedThreshold = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Re-evaluate midnight & carry-over immediately when app returns to foreground
+      ref.read(taskProvider.notifier).refreshTasks();
+    }
+  }
 
   void _openAddTaskModal() {
     HapticFeedback.mediumImpact();
@@ -118,7 +139,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ),
                       slivers: [
                         // 1. Header Section (Greeting, Date, & Plus Button)
-                        HomeHeader(onAddTap: _openAddTaskModal),
+                        HomeHeader(
+                          onAddTap: _openAddTaskModal,
+                          onLongPress: () {
+                            HapticFeedback.mediumImpact();
+                            notifier.debugInjectCarryOverSample();
+                          },
+                        ),
 
                         // 2. Dynamic Progress Counter Badge
                         ProgressChip(

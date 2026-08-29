@@ -178,6 +178,15 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
     state = state.where((task) => task.id != id).toList();
   }
 
+  // Restore a previously deleted task at its exact orderIndex (Undo Action)
+  void restoreTask(TaskModel task) {
+    if (state.any((t) => t.id == task.id)) return; // Prevent duplicate restoration
+    final updatedList = [...state, task];
+    updatedList.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+    _box.put(task.id, task.toMap());
+    state = updatedList;
+  }
+
   @override
   void dispose() {
     _midnightTimer?.cancel();

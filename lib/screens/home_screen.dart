@@ -5,6 +5,7 @@ import '../core/theme.dart';
 import '../core/constants.dart';
 import '../providers/task_provider.dart';
 import '../widgets/dialogs/task_dialog.dart';
+import '../widgets/feedback/undo_snackbar.dart';
 import '../widgets/home/home_header.dart';
 import '../widgets/home/progress_chip.dart';
 import '../widgets/home/bottom_pull_indicator.dart';
@@ -138,7 +139,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           )
                         else
                           SliverReorderableList(
+                            key: const ValueKey('sliver_reorderable_task_list'),
                             itemCount: tasks.length,
+                            findChildIndexCallback: (Key key) {
+                              if (key is ValueKey<String>) {
+                                final index = tasks.indexWhere(
+                                  (t) => t.id == key.value,
+                                );
+                                return index != -1 ? index : null;
+                              }
+                              return null;
+                            },
                             onReorderItem: (oldIndex, newIndex) {
                               HapticFeedback.lightImpact();
                               notifier.reorderTasks(oldIndex, newIndex);
@@ -174,8 +185,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 index: index,
                                 child: TaskCard(
                                   task: task,
-                                  onToggle: () => notifier.toggleTask(task.id),
-                                  onDelete: () => notifier.deleteTask(task.id),
+                                  onToggle: () {
+                                    final willBeDone = !task.isDone;
+                                    notifier.toggleTask(task.id);
+                                    if (willBeDone) {
+                                      UndoSnackBar.show(
+                                        context,
+                                        message: 'Tugas diselesaikan.',
+                                        onUndo: () =>
+                                            notifier.toggleTask(task.id),
+                                      );
+                                    }
+                                  },
+                                  onDelete: () {
+                                    notifier.deleteTask(task.id);
+                                    UndoSnackBar.show(
+                                      context,
+                                      message: 'Tugas dihapus.',
+                                      onUndo: () =>
+                                          notifier.restoreTask(task),
+                                    );
+                                  },
                                   onEdit: (newTitle) =>
                                       notifier.updateTask(task.id, newTitle),
                                 ),

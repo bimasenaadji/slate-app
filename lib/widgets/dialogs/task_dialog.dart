@@ -6,13 +6,19 @@ import '../../core/constants.dart';
 
 typedef TaskAddCallback = void Function(String title, bool isForTomorrow);
 
-/// Modal dialog with frosted glass backdrop for creating a new task
+/// Modal dialog with frosted glass backdrop for creating or editing a task (Brain Dump support)
 class TaskDialog extends StatefulWidget {
-  final TaskAddCallback onAdd;
+  final TaskAddCallback? onAdd;
+  final ValueChanged<String>? onEditSave;
+  final String? initialText;
+  final bool isEditMode;
 
   const TaskDialog({
     super.key,
-    required this.onAdd,
+    this.onAdd,
+    this.onEditSave,
+    this.initialText,
+    this.isEditMode = false,
   });
 
   /// Displays the task creation dialog with elastic spring overshoot physics
@@ -20,13 +26,42 @@ class TaskDialog extends StatefulWidget {
     BuildContext context, {
     required TaskAddCallback onAdd,
   }) {
+    return _show(
+      context,
+      dialog: TaskDialog(onAdd: onAdd),
+      barrierLabel: AppConstants.newNoteTitle,
+    );
+  }
+
+  /// Displays the task edit dialog with elastic spring overshoot physics
+  static Future<void> showEdit(
+    BuildContext context, {
+    required String initialText,
+    required ValueChanged<String> onSave,
+  }) {
+    return _show(
+      context,
+      dialog: TaskDialog(
+        initialText: initialText,
+        onEditSave: onSave,
+        isEditMode: true,
+      ),
+      barrierLabel: 'Edit Tugas',
+    );
+  }
+
+  static Future<void> _show(
+    BuildContext context, {
+    required Widget dialog,
+    required String barrierLabel,
+  }) {
     return showGeneralDialog<void>(
       context: context,
       barrierDismissible: true,
-      barrierLabel: AppConstants.newNoteTitle,
+      barrierLabel: barrierLabel,
       barrierColor: Colors.black.withValues(alpha: 0.16),
       transitionDuration: const Duration(milliseconds: 380),
-      pageBuilder: (context, anim1, anim2) => TaskDialog(onAdd: onAdd),
+      pageBuilder: (context, anim1, anim2) => dialog,
       transitionBuilder: (context, animation, secondaryAnimation, child) {
         // Elastic spring curve with subtle overshoot and settle
         final springCurvedAnimation = CurvedAnimation(
@@ -79,7 +114,7 @@ class TaskDialog extends StatefulWidget {
 }
 
 class _TaskDialogState extends State<TaskDialog> {
-  final TextEditingController _controller = TextEditingController();
+  late final TextEditingController _controller;
   final FocusNode _focusNode = FocusNode();
   bool _isForTomorrow = false;
   bool _isSubmitting = false;
@@ -87,6 +122,15 @@ class _TaskDialogState extends State<TaskDialog> {
   @override
   void initState() {
     super.initState();
+    _controller = TextEditingController(text: widget.initialText ?? '');
+
+    // Set cursor at the end of the text if editing
+    if (widget.initialText != null && widget.initialText!.isNotEmpty) {
+      _controller.selection = TextSelection.fromPosition(
+        TextPosition(offset: _controller.text.length),
+      );
+    }
+
     // Auto-focus input field and open keyboard smoothly
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -102,12 +146,23 @@ class _TaskDialogState extends State<TaskDialog> {
     super.dispose();
   }
 
+  void _handleTomorrowToggle() {
+    HapticFeedback.lightImpact();
+    setState(() {
+      _isForTomorrow = !_isForTomorrow;
+    });
+  }
+
   void _submit() {
     if (_isSubmitting) return; // Prevent double-submit on rapid tap
     final text = _controller.text.trim();
     if (text.isNotEmpty) {
       _isSubmitting = true;
-      widget.onAdd(text, _isForTomorrow);
+      if (widget.isEditMode) {
+        widget.onEditSave?.call(text);
+      } else {
+        widget.onAdd?.call(text, _isForTomorrow);
+      }
       Navigator.of(context).pop();
     } else {
       Navigator.of(context).pop();
@@ -146,169 +201,228 @@ class _TaskDialogState extends State<TaskDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header: Modal Title & Crescent Moon Tomorrow Toggle
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      AppConstants.newNoteTitle,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF1E1E1E),
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-
-                    // Tomorrow Queue Crescent Moon Toggle
-                    GestureDetector(
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        setState(() {
-                          _isForTomorrow = !_isForTomorrow;
-                        });
-                      },
-                      behavior: HitTestBehavior.opaque,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _isForTomorrow
-                              ? const Color(0xFF19191B)
-                              : const Color(0xFFF0F3F8),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _isForTomorrow
-                                  ? Icons.nightlight_round
-                                  : Icons.nightlight_outlined,
-                              size: 15,
-                              color: _isForTomorrow
-                                  ? Colors.white
-                                  : const Color(0xFF81838A),
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              'Besok',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12,
-                                fontWeight: _isForTomorrow
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
-                                color: _isForTomorrow
-                                    ? Colors.white
-                                    : const Color(0xFF81838A),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+                // 1. Header with Title and Tomorrow Crescent Moon Toggle
+                _DialogHeader(
+                  isEditMode: widget.isEditMode,
+                  isForTomorrow: _isForTomorrow,
+                  onTomorrowToggle: _handleTomorrowToggle,
                 ),
                 const SizedBox(height: 14),
 
-                // Note / Task Input Field
-                TextField(
+                // 2. Multiline Brain Dump Input Area
+                _DialogInputArea(
                   controller: _controller,
                   focusNode: _focusNode,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF1E1E1E),
-                    height: 1.4,
-                  ),
-                  textCapitalization: TextCapitalization.sentences,
-                  textInputAction: TextInputAction.done,
-                  maxLines: 4,
-                  minLines: 1,
-                  decoration: InputDecoration(
-                    hintText: _isForTomorrow
-                        ? 'Tulis untuk besok...'
-                        : AppConstants.inputPlaceholder,
-                    hintStyle: GoogleFonts.plusJakartaSans(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w400,
-                      color: const Color(0xFF9E9E9E),
-                    ),
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
-                    border: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                  ),
-                  onSubmitted: (_) => _submit(),
+                  isEditMode: widget.isEditMode,
+                  isForTomorrow: _isForTomorrow,
+                  onSubmit: _submit,
                 ),
                 const SizedBox(height: 24),
 
-                // Action Buttons: Batal & Simpan
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    // Batal Button
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () => Navigator.of(context).pop(),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 8,
-                          ),
-                          child: Text(
-                            'Batal',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: const Color(0xFF757575),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-
-                    // Simpan Pill Button
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: _submit,
-                        borderRadius: BorderRadius.circular(30),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 22,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF19191B),
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                          child: Text(
-                            'Simpan',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                // 3. Modal Actions: Batal & Simpan
+                _DialogActions(
+                  onSubmit: _submit,
+                  onCancel: () => Navigator.of(context).pop(),
                 ),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Header component displaying dialog title and tomorrow queue toggle
+class _DialogHeader extends StatelessWidget {
+  final bool isEditMode;
+  final bool isForTomorrow;
+  final VoidCallback onTomorrowToggle;
+
+  const _DialogHeader({
+    required this.isEditMode,
+    required this.isForTomorrow,
+    required this.onTomorrowToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          isEditMode ? 'Edit Tugas' : AppConstants.newNoteTitle,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF1E1E1E),
+            letterSpacing: -0.2,
+          ),
+        ),
+
+        // Tomorrow Queue Crescent Moon Toggle (Hidden in Edit Mode)
+        if (!isEditMode)
+          GestureDetector(
+            onTap: onTomorrowToggle,
+            behavior: HitTestBehavior.opaque,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: isForTomorrow
+                    ? const Color(0xFF19191B)
+                    : const Color(0xFFF0F3F8),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isForTomorrow
+                        ? Icons.nightlight_round
+                        : Icons.nightlight_outlined,
+                    size: 15,
+                    color: isForTomorrow
+                        ? Colors.white
+                        : const Color(0xFF81838A),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Besok',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: isForTomorrow
+                          ? FontWeight.w700
+                          : FontWeight.w500,
+                      color: isForTomorrow
+                          ? Colors.white
+                          : const Color(0xFF81838A),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Flexible multi-line input field supporting 1-5 lines and internal scrolling for brain dumps
+class _DialogInputArea extends StatelessWidget {
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final bool isEditMode;
+  final bool isForTomorrow;
+  final VoidCallback onSubmit;
+
+  const _DialogInputArea({
+    required this.controller,
+    required this.focusNode,
+    required this.isEditMode,
+    required this.isForTomorrow,
+    required this.onSubmit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      focusNode: focusNode,
+      style: GoogleFonts.plusJakartaSans(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        color: const Color(0xFF1E1E1E),
+        height: 1.4,
+      ),
+      textCapitalization: TextCapitalization.sentences,
+      textInputAction: TextInputAction.done,
+      maxLines: 5,
+      minLines: 1,
+      scrollPhysics: const BouncingScrollPhysics(),
+      decoration: InputDecoration(
+        hintText: isEditMode
+            ? 'Tulis catatan tugas...'
+            : isForTomorrow
+                ? 'Tulis untuk besok...'
+                : AppConstants.inputPlaceholder,
+        hintStyle: GoogleFonts.plusJakartaSans(
+          fontSize: 15,
+          fontWeight: FontWeight.w400,
+          color: const Color(0xFF9E9E9E),
+        ),
+        isDense: true,
+        contentPadding: EdgeInsets.zero,
+        border: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        enabledBorder: InputBorder.none,
+      ),
+      onSubmitted: (_) => onSubmit(),
+    );
+  }
+}
+
+/// Action buttons: 'Batal' and 'Simpan' pill
+class _DialogActions extends StatelessWidget {
+  final VoidCallback onSubmit;
+  final VoidCallback onCancel;
+
+  const _DialogActions({
+    required this.onSubmit,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        // Batal Button
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onCancel,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: Text(
+                'Batal',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: const Color(0xFF757575),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+
+        // Simpan Pill Button
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onSubmit,
+            borderRadius: BorderRadius.circular(30),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF19191B),
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Text(
+                'Simpan',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

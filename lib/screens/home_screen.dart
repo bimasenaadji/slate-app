@@ -27,10 +27,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   bool _hasReachedThreshold = false;
   bool _isModalOpen = false;
 
+  // Midnight Magic transition state
+  double _canvasOpacity = 1.0;
+  bool _isMidnightTransitioning = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    // Register callback for when midnight strikes while app is active
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(taskProvider.notifier).onMidnightMagicTriggered =
+          _executeMidnightMagicSequence;
+    });
   }
 
   @override
@@ -44,6 +54,35 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     if (state == AppLifecycleState.resumed) {
       // Re-evaluate midnight & carry-over immediately when app returns to foreground
       ref.read(taskProvider.notifier).refreshTasks();
+    }
+  }
+
+  /// Executes the calming, multi-phase 00:00 Midnight Magic transition
+  Future<void> _executeMidnightMagicSequence() async {
+    if (_isMidnightTransitioning || !mounted) return;
+    _isMidnightTransitioning = true;
+
+    // 1. FASE TARIKAN NAPAS (The Deep Breath): Canvas dims to 85% with gentle haptic
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _canvasOpacity = 0.85;
+    });
+
+    await Future.delayed(const Duration(milliseconds: 550));
+
+    // 2. FASE PEMBERSIHAN & TRANSISI SISA TUGAS (The Sweep & Fade to Muted)
+    if (mounted) {
+      ref.read(taskProvider.notifier).performMidnightMagic();
+    }
+
+    await Future.delayed(const Duration(milliseconds: 400));
+
+    // 3. FASE FAJAR (The Dawn): Restore canvas brightness to 100%
+    if (mounted) {
+      setState(() {
+        _canvasOpacity = 1.0;
+      });
+      _isMidnightTransitioning = false;
     }
   }
 
@@ -107,185 +146,186 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       child: Scaffold(
         backgroundColor: AppColors.bgMain,
         body: SafeArea(
-          child: Stack(
-            children: [
-              // Pointer Listener detects finger release immediately
-              Listener(
-                onPointerUp: (_) => _handlePointerRelease(),
-                onPointerCancel: (_) => _handlePointerRelease(),
-                child: NotificationListener<ScrollNotification>(
-                  onNotification: (ScrollNotification notification) {
-                    if (notification is ScrollUpdateNotification) {
-                      if (notification.metrics.pixels >
-                          notification.metrics.maxScrollExtent) {
-                        final overscroll =
-                            notification.metrics.pixels -
-                            notification.metrics.maxScrollExtent;
-                        final elasticDistance =
-                            _calculateRubberBandDistance(overscroll);
-                        setState(() {
-                          _bottomPullDistance = elasticDistance;
-                        });
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeInOutCubic,
+            opacity: _canvasOpacity,
+            child: Stack(
+              children: [
+                // Pointer Listener detects finger release immediately
+                Listener(
+                  onPointerUp: (_) => _handlePointerRelease(),
+                  onPointerCancel: (_) => _handlePointerRelease(),
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: (ScrollNotification notification) {
+                      if (notification is ScrollUpdateNotification) {
+                        if (notification.metrics.pixels >
+                            notification.metrics.maxScrollExtent) {
+                          final overscroll =
+                              notification.metrics.pixels -
+                              notification.metrics.maxScrollExtent;
+                          final elasticDistance =
+                              _calculateRubberBandDistance(overscroll);
+                          setState(() {
+                            _bottomPullDistance = elasticDistance;
+                          });
 
-                        if (_bottomPullDistance >= _pullThreshold &&
-                            !_hasReachedThreshold) {
-                          _hasReachedThreshold = true;
-                          HapticFeedback.lightImpact();
-                        } else if (_bottomPullDistance < _pullThreshold &&
-                            _hasReachedThreshold) {
-                          _hasReachedThreshold = false;
+                          if (_bottomPullDistance >= _pullThreshold &&
+                              !_hasReachedThreshold) {
+                            _hasReachedThreshold = true;
+                            HapticFeedback.lightImpact();
+                          } else if (_bottomPullDistance < _pullThreshold &&
+                              _hasReachedThreshold) {
+                            _hasReachedThreshold = false;
+                          }
                         }
-                      }
-                    } else if (notification is OverscrollNotification) {
-                      if (notification.overscroll > 0) {
-                        final rawDistance =
-                            _bottomPullDistance + notification.overscroll;
-                        final elasticDistance =
-                            _calculateRubberBandDistance(rawDistance);
-                        setState(() {
-                          _bottomPullDistance = elasticDistance;
-                        });
+                      } else if (notification is OverscrollNotification) {
+                        if (notification.overscroll > 0) {
+                          final rawDistance =
+                              _bottomPullDistance + notification.overscroll;
+                          final elasticDistance =
+                              _calculateRubberBandDistance(rawDistance);
+                          setState(() {
+                            _bottomPullDistance = elasticDistance;
+                          });
 
-                        if (_bottomPullDistance >= _pullThreshold &&
-                            !_hasReachedThreshold) {
-                          _hasReachedThreshold = true;
-                          HapticFeedback.lightImpact();
+                          if (_bottomPullDistance >= _pullThreshold &&
+                              !_hasReachedThreshold) {
+                            _hasReachedThreshold = true;
+                            HapticFeedback.lightImpact();
+                          }
                         }
+                      } else if (notification is ScrollEndNotification) {
+                        _handlePointerRelease();
                       }
-                    } else if (notification is ScrollEndNotification) {
-                      _handlePointerRelease();
-                    }
-                    return false;
-                  },
-                  child: RefreshIndicator(
-                    onRefresh: () => notifier.refreshTasks(),
-                    color: AppColors.textPrimary,
-                    backgroundColor: Colors.white,
-                    displacement: 32,
-                    child: CustomScrollView(
-                      physics: const AlwaysScrollableScrollPhysics(
-                        parent: BouncingScrollPhysics(),
-                      ),
-                      slivers: [
-                        // 1. Header Section (Greeting, Date, & Plus Button)
-                        HomeHeader(
-                          onAddTap: _openAddTaskModal,
-                          onLongPress: () {
-                            HapticFeedback.mediumImpact();
-                            notifier.debugInjectCarryOverSample();
-                          },
+                      return false;
+                    },
+                    child: RefreshIndicator(
+                      onRefresh: () => notifier.refreshTasks(),
+                      color: AppColors.textPrimary,
+                      backgroundColor: Colors.white,
+                      displacement: 32,
+                      child: CustomScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(
+                          parent: BouncingScrollPhysics(),
                         ),
-
-                        // 2. Dynamic Progress Counter Badge
-                        ProgressChip(
-                          completedCount: completedCount,
-                          totalCount: totalCount,
-                        ),
-
-                        // Spacer
-                        const SliverToBoxAdapter(
-                          child: SizedBox(height: AppConstants.paddingMd),
-                        ),
-
-                        // 3. Dynamic Body: Empty State OR Reorderable Task List
-                        if (tasks.isEmpty)
-                          const SliverFillRemaining(
-                            hasScrollBody: false,
-                            child: EmptyState(),
-                          )
-                        else
-                          SliverReorderableList(
-                            key: const ValueKey('sliver_reorderable_task_list'),
-                            itemCount: tasks.length,
-                            findChildIndexCallback: (Key key) {
-                              if (key is ValueKey<String>) {
-                                final index = tasks.indexWhere(
-                                  (t) => t.id == key.value,
-                                );
-                                return index != -1 ? index : null;
-                              }
-                              return null;
-                            },
-                            onReorderItem: (oldIndex, newIndex) {
-                              HapticFeedback.lightImpact();
-                              notifier.reorderTasks(oldIndex, newIndex);
-                            },
-                            proxyDecorator: (child, index, animation) {
-                              return AnimatedBuilder(
-                                animation: animation,
-                                builder: (context, child) {
-                                  final animValue =
-                                      Curves.easeInOut.transform(animation.value);
-                                  return Transform.scale(
-                                    scale: 1.0 + (0.03 * animValue),
-                                    child: Material(
-                                      color: Colors.transparent,
-                                      shadowColor: Colors.black.withValues(
-                                        alpha: 0.18,
-                                      ),
-                                      elevation: 16 * animValue,
-                                      borderRadius: BorderRadius.circular(
-                                        AppShapes.radiusLg,
-                                      ),
-                                      child: child,
-                                    ),
-                                  );
-                                },
-                                child: child,
-                              );
-                            },
-                            itemBuilder: (context, index) {
-                              final task = tasks[index];
-                              return ReorderableDelayedDragStartListener(
-                                key: ValueKey(task.id),
-                                index: index,
-                                child: TaskCard(
-                                  key: ValueKey('task_card_${task.id}'),
-                                  task: task,
-                                  onToggle: () {
-                                    final willBeDone = !task.isDone;
-                                    notifier.toggleTask(task.id);
-                                    if (willBeDone) {
-                                      UndoSnackBar.show(
-                                        context,
-                                        message: 'Tugas diselesaikan.',
-                                        onUndo: () =>
-                                            notifier.toggleTask(task.id),
-                                      );
-                                    }
-                                  },
-                                  onDelete: () {
-                                    notifier.deleteTask(task.id);
-                                    UndoSnackBar.show(
-                                      context,
-                                      message: 'Tugas dihapus.',
-                                      onUndo: () =>
-                                          notifier.restoreTask(task),
-                                    );
-                                  },
-                                  onEdit: (newTitle) =>
-                                      notifier.updateTask(task.id, newTitle),
-                                ),
-                              );
-                            },
+                        slivers: [
+                          // 1. Header Section (Greeting, Date, & Plus Button)
+                          HomeHeader(
+                            onAddTap: _openAddTaskModal,
                           ),
 
-                        // Bottom comfortable scroll clearance
-                        const SliverToBoxAdapter(
-                          child: SizedBox(height: 70),
-                        ),
-                      ],
+                          // 2. Dynamic Progress Counter Badge
+                          ProgressChip(
+                            completedCount: completedCount,
+                            totalCount: totalCount,
+                          ),
+
+                          // Spacer
+                          const SliverToBoxAdapter(
+                            child: SizedBox(height: AppConstants.paddingMd),
+                          ),
+
+                          // 3. Dynamic Body: Empty State OR Reorderable Task List
+                          if (tasks.isEmpty)
+                            const SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: EmptyState(),
+                            )
+                          else
+                            SliverReorderableList(
+                              key: const ValueKey('sliver_reorderable_task_list'),
+                              itemCount: tasks.length,
+                              findChildIndexCallback: (Key key) {
+                                if (key is ValueKey<String>) {
+                                  final index = tasks.indexWhere(
+                                    (t) => t.id == key.value,
+                                  );
+                                  return index != -1 ? index : null;
+                                }
+                                return null;
+                              },
+                              onReorderItem: (oldIndex, newIndex) {
+                                HapticFeedback.lightImpact();
+                                notifier.reorderTasks(oldIndex, newIndex);
+                              },
+                              proxyDecorator: (child, index, animation) {
+                                return AnimatedBuilder(
+                                  animation: animation,
+                                  builder: (context, child) {
+                                    final animValue = Curves.easeInOut
+                                        .transform(animation.value);
+                                    return Transform.scale(
+                                      scale: 1.0 + (0.03 * animValue),
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        shadowColor: Colors.black.withValues(
+                                          alpha: 0.18,
+                                        ),
+                                        elevation: 16 * animValue,
+                                        borderRadius: BorderRadius.circular(
+                                          AppShapes.radiusLg,
+                                        ),
+                                        child: child,
+                                      ),
+                                    );
+                                  },
+                                  child: child,
+                                );
+                              },
+                              itemBuilder: (context, index) {
+                                final task = tasks[index];
+                                return ReorderableDelayedDragStartListener(
+                                  key: ValueKey(task.id),
+                                  index: index,
+                                  child: TaskCard(
+                                    key: ValueKey('task_card_${task.id}'),
+                                    task: task,
+                                    onToggle: () {
+                                      final willBeDone = !task.isDone;
+                                      notifier.toggleTask(task.id);
+                                      if (willBeDone) {
+                                        UndoSnackBar.show(
+                                          context,
+                                          message: 'Tugas diselesaikan.',
+                                          onUndo: () =>
+                                              notifier.toggleTask(task.id),
+                                        );
+                                      }
+                                    },
+                                    onDelete: () {
+                                      notifier.deleteTask(task.id);
+                                      UndoSnackBar.show(
+                                        context,
+                                        message: 'Tugas dihapus.',
+                                        onUndo: () =>
+                                            notifier.restoreTask(task),
+                                      );
+                                    },
+                                    onEdit: (newTitle) =>
+                                        notifier.updateTask(task.id, newTitle),
+                                  ),
+                                );
+                              },
+                            ),
+
+                          // Bottom comfortable scroll clearance
+                          const SliverToBoxAdapter(
+                            child: SizedBox(height: 70),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
 
-              // 4. Animated Bottom Pull-to-Add Floating Indicator
-              BottomPullIndicator(
-                pullDistance: _bottomPullDistance,
-                threshold: _pullThreshold,
-              ),
-            ],
+                // 4. Animated Bottom Pull-to-Add Floating Indicator
+                BottomPullIndicator(
+                  pullDistance: _bottomPullDistance,
+                  threshold: _pullThreshold,
+                ),
+              ],
+            ),
           ),
         ),
       ),

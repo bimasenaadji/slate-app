@@ -5,12 +5,10 @@ import '../../core/utils/date_helper.dart';
 
 class HomeHeader extends StatelessWidget {
   final VoidCallback onAddTap;
-  final VoidCallback? onLongPress;
 
   const HomeHeader({
     super.key,
     required this.onAddTap,
-    this.onLongPress,
   });
 
   @override
@@ -27,36 +25,57 @@ class HomeHeader extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Greeting and Date (Long press to test carry-over)
-            GestureDetector(
-              onLongPress: onLongPress,
-              behavior: HitTestBehavior.opaque,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                Text(
-                  DateHelper.getGreeting(),
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textSecondary.withValues(alpha: 0.85),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 800),
+                  transitionBuilder: (child, animation) {
+                    return FadeTransition(
+                      opacity: animation,
+                      child: child,
+                    );
+                  },
+                  child: Text(
+                    DateHelper.getGreeting(),
+                    key: ValueKey(DateHelper.getGreeting()),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textSecondary.withValues(alpha: 0.85),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  DateHelper.formatTodayDate(),
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                    letterSpacing: -0.6,
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 800),
+                  transitionBuilder: (child, animation) {
+                    return FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0.0, 0.15),
+                          end: Offset.zero,
+                        ).animate(animation),
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: Text(
+                    DateHelper.formatTodayDate(),
+                    key: ValueKey(DateHelper.formatTodayDate()),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                      letterSpacing: -0.6,
+                    ),
                   ),
                 ),
               ],
             ),
-          ),
 
-          // Add Action Button
+            // Add Action Button
             GestureDetector(
               onTap: onAddTap,
               child: Container(

@@ -308,22 +308,30 @@ class _TaskCardState extends State<TaskCard>
                                 onSubmitted: (_) => _saveChanges(),
                               )
                             else
-                              Text(
-                                widget.task.title,
+                              AnimatedDefaultTextStyle(
+                                duration: const Duration(milliseconds: 1200),
+                                curve: Curves.easeInOutCubic,
                                 style: AppTypography.bodyPrimary.copyWith(
                                   color: _titleColor,
                                   decoration: widget.task.isDone
                                       ? TextDecoration.lineThrough
                                       : null,
                                 ),
+                                child: Text(widget.task.title),
                               ),
                             const SizedBox(height: 4),
-                            Text(
-                              _formatDateTime(widget.task.createdAt),
-                              style: AppTypography.captionSecondary.copyWith(
-                                fontSize: 12,
-                                color: AppColors.textSecondary.withValues(
-                                  alpha: 0.8,
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 600),
+                              child: Text(
+                                _formatDateTime(widget.task.createdAt),
+                                key: ValueKey(
+                                  '${widget.task.isCarriedOver}_${widget.task.createdAt.millisecondsSinceEpoch}',
+                                ),
+                                style: AppTypography.captionSecondary.copyWith(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary.withValues(
+                                    alpha: 0.8,
+                                  ),
                                 ),
                               ),
                             ),

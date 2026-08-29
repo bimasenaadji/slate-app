@@ -20,6 +20,7 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
   final Box _box;
   Timer? _midnightTimer;
   DateTime _lastCheckedDay = DateTime.now();
+  void Function()? onMidnightMagicTriggered;
 
   TaskNotifier(this._box) : super([]) {
     _loadTasksAndCheckMidnight();
@@ -91,6 +92,11 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
     _loadTasksAndCheckMidnight();
   }
 
+  // Public method to execute midnight magic sequence (Clean Slate + Carry-Over + Tomorrow Promotion)
+  void performMidnightMagic() {
+    _loadTasksAndCheckMidnight();
+  }
+
   // Timer to check for day transition while the app is actively running
   void _startMidnightTimer() {
     _midnightTimer?.cancel();
@@ -105,9 +111,13 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
     });
   }
 
-  // Executes midnight evaluation and clean slate carry-over rules
+  // Executes midnight evaluation and triggers cinematic transition if active
   void _clearAllTasks() {
-    _loadTasksAndCheckMidnight();
+    if (onMidnightMagicTriggered != null) {
+      onMidnightMagicTriggered!();
+    } else {
+      _loadTasksAndCheckMidnight();
+    }
   }
 
   // Helper method to check if a date is in the future
@@ -137,7 +147,7 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
   // Add a new task (Today or Tomorrow Queue)
   void addTask(String title, {bool isForTomorrow = false}) {
     if (title.trim().isEmpty) return;
-    
+
     final now = DateTime.now();
 
     if (isForTomorrow) {
@@ -245,26 +255,6 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
     updatedList.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
     _box.put(task.id, task.toMap());
     state = updatedList;
-  }
-
-  // Helper for quick testing of carry-over & purge logic
-  void debugInjectCarryOverSample() {
-    final yesterday = DateTime.now().subtract(const Duration(days: 1));
-    final task1 = TaskModel(
-      id: 'debug_active_${DateTime.now().millisecondsSinceEpoch}',
-      title: 'Tugas kemarin belum selesai',
-      createdAt: yesterday,
-      isDone: false,
-    );
-    final task2 = TaskModel(
-      id: 'debug_done_${DateTime.now().millisecondsSinceEpoch}',
-      title: 'Tugas kemarin sudah selesai',
-      createdAt: yesterday,
-      isDone: true,
-    );
-    _box.put(task1.id, task1.toMap());
-    _box.put(task2.id, task2.toMap());
-    _loadTasksAndCheckMidnight();
   }
 
   @override

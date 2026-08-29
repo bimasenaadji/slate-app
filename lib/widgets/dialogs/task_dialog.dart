@@ -3,14 +3,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants.dart';
+import '../../core/constants/time_anchor.dart';
 
-typedef TaskAddCallback = void Function(String title, bool isForTomorrow);
+typedef TaskAddCallback = void Function(
+  String title,
+  bool isForTomorrow,
+  String? reminderAnchor,
+);
 
-/// Modal dialog with frosted glass backdrop for creating or editing a task (Brain Dump support)
+typedef TaskEditCallback = void Function(
+  String title,
+  String? reminderAnchor,
+);
+
+/// Modal dialog with frosted glass backdrop for creating or editing a task with Mindful Anchors
 class TaskDialog extends StatefulWidget {
   final TaskAddCallback? onAdd;
-  final ValueChanged<String>? onEditSave;
+  final TaskEditCallback? onEditSave;
   final String? initialText;
+  final String? initialAnchor;
   final bool isEditMode;
   final bool isTomorrowDefault;
 
@@ -19,6 +30,7 @@ class TaskDialog extends StatefulWidget {
     this.onAdd,
     this.onEditSave,
     this.initialText,
+    this.initialAnchor,
     this.isEditMode = false,
     this.isTomorrowDefault = false,
   });
@@ -43,12 +55,14 @@ class TaskDialog extends StatefulWidget {
   static Future<void> showEdit(
     BuildContext context, {
     required String initialText,
-    required ValueChanged<String> onSave,
+    String? initialAnchor,
+    required TaskEditCallback onSave,
   }) {
     return _show(
       context,
       dialog: TaskDialog(
         initialText: initialText,
+        initialAnchor: initialAnchor,
         onEditSave: onSave,
         isEditMode: true,
       ),
@@ -123,13 +137,18 @@ class _TaskDialogState extends State<TaskDialog> {
   late final TextEditingController _controller;
   final FocusNode _focusNode = FocusNode();
   bool _isForTomorrow = false;
+  String? _selectedAnchor;
+  bool _isAnchorAutoDetected = false;
+  bool _isTomorrowAutoDetected = false;
   bool _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
     _isForTomorrow = widget.isTomorrowDefault;
+    _selectedAnchor = widget.initialAnchor;
     _controller = TextEditingController(text: widget.initialText ?? '');
+    _controller.addListener(_detectKeywords);
 
     // Set cursor at the end of the text if editing
     if (widget.initialText != null && widget.initialText!.isNotEmpty) {
@@ -148,15 +167,68 @@ class _TaskDialogState extends State<TaskDialog> {
 
   @override
   void dispose() {
+    _controller.removeListener(_detectKeywords);
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
   }
 
+  /// Dynamically activates or clears time anchors & tomorrow queue as keywords are typed or deleted
+  void _detectKeywords() {
+    final text = _controller.text;
+
+    // 1. Detect time anchor keywords using TimeAnchorDetector
+    final detected = TimeAnchorDetector.detectAnchor(text);
+    final detectedAnchor = detected?.key;
+
+    if (detectedAnchor != null) {
+      if (detectedAnchor != _selectedAnchor) {
+        _isAnchorAutoDetected = true;
+        HapticFeedback.selectionClick();
+        setState(() {
+          _selectedAnchor = detectedAnchor;
+        });
+      }
+    } else if (_isAnchorAutoDetected && _selectedAnchor != null) {
+      // Keyword was deleted by user via backspace
+      _isAnchorAutoDetected = false;
+      setState(() {
+        _selectedAnchor = null;
+      });
+    }
+
+    // 2. Detect tomorrow keyword (in create mode)
+    if (!widget.isEditMode) {
+      final hasTomorrow = TimeAnchorDetector.detectTomorrow(text);
+      if (hasTomorrow && !_isForTomorrow) {
+        _isTomorrowAutoDetected = true;
+        HapticFeedback.selectionClick();
+        setState(() {
+          _isForTomorrow = true;
+        });
+      } else if (!hasTomorrow && _isTomorrowAutoDetected) {
+        // "besok" keyword was deleted by user via backspace
+        _isTomorrowAutoDetected = false;
+        setState(() {
+          _isForTomorrow = widget.isTomorrowDefault;
+        });
+      }
+    }
+  }
+
   void _handleTomorrowToggle() {
+    _isTomorrowAutoDetected = false; // User took manual control
     HapticFeedback.lightImpact();
     setState(() {
       _isForTomorrow = !_isForTomorrow;
+    });
+  }
+
+  void _handleAnchorToggle(String anchor) {
+    _isAnchorAutoDetected = false; // User took manual control
+    HapticFeedback.lightImpact();
+    setState(() {
+      _selectedAnchor = _selectedAnchor == anchor ? null : anchor;
     });
   }
 
@@ -167,9 +239,9 @@ class _TaskDialogState extends State<TaskDialog> {
       _isSubmitting = true;
       Navigator.of(context).pop();
       if (widget.isEditMode) {
-        widget.onEditSave?.call(text);
+        widget.onEditSave?.call(text, _selectedAnchor);
       } else {
-        widget.onAdd?.call(text, _isForTomorrow);
+        widget.onAdd?.call(text, _isForTomorrow, _selectedAnchor);
       }
     } else {
       Navigator.of(context).pop();
@@ -224,9 +296,16 @@ class _TaskDialogState extends State<TaskDialog> {
                   isForTomorrow: _isForTomorrow,
                   onSubmit: _submit,
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
 
-                // 3. Modal Actions: Batal & Simpan
+                // 3. Discrete Mindful Time Anchors (Pagi, Siang, Malam)
+                _DialogTimeAnchors(
+                  selectedAnchor: _selectedAnchor,
+                  onAnchorToggle: _handleAnchorToggle,
+                ),
+                const SizedBox(height: 20),
+
+                // 4. Modal Actions: Batal & Simpan
                 _DialogActions(
                   onSubmit: _submit,
                   onCancel: () => Navigator.of(context).pop(),
@@ -286,9 +365,7 @@ class _DialogHeader extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    isForTomorrow
-                        ? Icons.nightlight_round
-                        : Icons.nightlight_outlined,
+                    Icons.upcoming_outlined,
                     size: 15,
                     color: isForTomorrow
                         ? Colors.white
@@ -366,6 +443,73 @@ class _DialogInputArea extends StatelessWidget {
         enabledBorder: InputBorder.none,
       ),
       onSubmitted: (_) => onSubmit(),
+    );
+  }
+}
+
+/// Discrete 1-Tap Mindful Time Anchors: Pagi (09:00), Siang (13:00), Malam (19:00)
+class _DialogTimeAnchors extends StatelessWidget {
+  final String? selectedAnchor;
+  final ValueChanged<String> onAnchorToggle;
+
+  const _DialogTimeAnchors({
+    required this.selectedAnchor,
+    required this.onAnchorToggle,
+  });
+
+  Widget _buildAnchorPill({required TimeAnchor anchor}) {
+    final isSelected = selectedAnchor == anchor.key;
+
+    return GestureDetector(
+      onTap: () => onAnchorToggle(anchor.key),
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF19191B) : const Color(0xFFF3F4F8),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? Colors.transparent : const Color(0xFFE5E7EB),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              anchor.icon,
+              size: 14,
+              color: isSelected ? Colors.white : const Color(0xFF5A5C63),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              '${anchor.label} ${anchor.timeHint}',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? Colors.white : const Color(0xFF5A5C63),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: Row(
+        children: [
+          for (int i = 0; i < TimeAnchor.values.length; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            _buildAnchorPill(anchor: TimeAnchor.values[i]),
+          ],
+        ],
+      ),
     );
   }
 }

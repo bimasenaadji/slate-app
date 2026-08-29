@@ -6,6 +6,7 @@ class TaskModel {
   final int orderIndex;
   final bool isCarriedOver;
   final DateTime? scheduledDate;
+  final String? reminderAnchor; // 'morning' | 'afternoon' | 'evening' | null
 
   TaskModel({
     required this.id,
@@ -15,6 +16,7 @@ class TaskModel {
     this.orderIndex = 0,
     this.isCarriedOver = false,
     this.scheduledDate,
+    this.reminderAnchor,
   });
 
   TaskModel copyWith({
@@ -26,6 +28,8 @@ class TaskModel {
     bool? isCarriedOver,
     DateTime? scheduledDate,
     bool clearScheduledDate = false,
+    String? reminderAnchor,
+    bool clearReminderAnchor = false,
   }) {
     return TaskModel(
       id: id ?? this.id,
@@ -37,6 +41,9 @@ class TaskModel {
       scheduledDate: clearScheduledDate
           ? null
           : (scheduledDate ?? this.scheduledDate),
+      reminderAnchor: clearReminderAnchor
+          ? null
+          : (reminderAnchor ?? this.reminderAnchor),
     );
   }
 
@@ -49,6 +56,7 @@ class TaskModel {
       'orderIndex': orderIndex,
       'isCarriedOver': isCarriedOver,
       'scheduledDate': scheduledDate?.toIso8601String(),
+      'reminderAnchor': reminderAnchor,
     };
   }
 
@@ -63,6 +71,7 @@ class TaskModel {
       scheduledDate: map['scheduledDate'] != null
           ? DateTime.parse(map['scheduledDate'] as String)
           : null,
+      reminderAnchor: map['reminderAnchor'] as String?,
     );
   }
 }

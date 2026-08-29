@@ -108,9 +108,7 @@ class HomeHeader extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          tomorrowTaskCount > 0
-                              ? Icons.nightlight_round
-                              : Icons.nightlight_outlined,
+                          Icons.upcoming_outlined,
                           color: tomorrowTaskCount > 0
                               ? Colors.white
                               : AppColors.textPrimary,

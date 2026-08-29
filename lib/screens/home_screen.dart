@@ -94,10 +94,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     HapticFeedback.mediumImpact();
     TaskDialog.showCreate(
       context,
-      onAdd: (title, isForTomorrow) {
-        ref
-            .read(taskProvider.notifier)
-            .addTask(title, isForTomorrow: isForTomorrow);
+      onAdd: (title, isForTomorrow, reminderAnchor) {
+        ref.read(taskProvider.notifier).addTask(
+              title,
+              isForTomorrow: isForTomorrow,
+              reminderAnchor: reminderAnchor,
+            );
         if (isForTomorrow) {
           UndoSnackBar.show(
             context,
@@ -307,8 +309,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                       TaskDialog.showEdit(
                                         context,
                                         initialText: task.title,
-                                        onSave: (newTitle) => notifier
-                                            .updateTask(task.id, newTitle),
+                                        initialAnchor: task.reminderAnchor,
+                                        onSave: (newTitle, reminderAnchor) =>
+                                            notifier.updateTask(
+                                          task.id,
+                                          newTitle,
+                                          reminderAnchor: reminderAnchor,
+                                          clearReminderAnchor:
+                                              reminderAnchor == null,
+                                        ),
                                       ).whenComplete(() {
                                         if (mounted) {
                                           _isModalOpen = false;

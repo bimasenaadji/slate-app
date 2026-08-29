@@ -127,7 +127,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       setState(() {
         _bottomPullDistance = 0.0;
       });
-      _openAddTaskModal();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _openAddTaskModal();
+        }
+      });
     } else if (_bottomPullDistance > 0) {
       setState(() {
         _bottomPullDistance = 0.0;
@@ -205,7 +209,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           }
                         }
                       } else if (notification is ScrollEndNotification) {
-                        _handlePointerRelease();
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) {
+                            _handlePointerRelease();
+                          }
+                        });
                       }
                       return false;
                     },

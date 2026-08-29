@@ -165,12 +165,12 @@ class _TaskDialogState extends State<TaskDialog> {
     final text = _controller.text.trim();
     if (text.isNotEmpty) {
       _isSubmitting = true;
+      Navigator.of(context).pop();
       if (widget.isEditMode) {
         widget.onEditSave?.call(text);
       } else {
         widget.onAdd?.call(text, _isForTomorrow);
       }
-      Navigator.of(context).pop();
     } else {
       Navigator.of(context).pop();
     }

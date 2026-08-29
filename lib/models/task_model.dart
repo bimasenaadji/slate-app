@@ -5,6 +5,7 @@ class TaskModel {
   final DateTime createdAt;
   final int orderIndex;
   final bool isCarriedOver;
+  final DateTime? scheduledDate;
 
   TaskModel({
     required this.id,
@@ -13,6 +14,7 @@ class TaskModel {
     required this.createdAt,
     this.orderIndex = 0,
     this.isCarriedOver = false,
+    this.scheduledDate,
   });
 
   TaskModel copyWith({
@@ -22,6 +24,8 @@ class TaskModel {
     DateTime? createdAt,
     int? orderIndex,
     bool? isCarriedOver,
+    DateTime? scheduledDate,
+    bool clearScheduledDate = false,
   }) {
     return TaskModel(
       id: id ?? this.id,
@@ -30,6 +34,9 @@ class TaskModel {
       createdAt: createdAt ?? this.createdAt,
       orderIndex: orderIndex ?? this.orderIndex,
       isCarriedOver: isCarriedOver ?? this.isCarriedOver,
+      scheduledDate: clearScheduledDate
+          ? null
+          : (scheduledDate ?? this.scheduledDate),
     );
   }
 
@@ -41,6 +48,7 @@ class TaskModel {
       'createdAt': createdAt.toIso8601String(),
       'orderIndex': orderIndex,
       'isCarriedOver': isCarriedOver,
+      'scheduledDate': scheduledDate?.toIso8601String(),
     };
   }
 
@@ -52,6 +60,9 @@ class TaskModel {
       createdAt: DateTime.parse(map['createdAt'] as String),
       orderIndex: map['orderIndex'] as int? ?? 0,
       isCarriedOver: map['isCarriedOver'] as bool? ?? false,
+      scheduledDate: map['scheduledDate'] != null
+          ? DateTime.parse(map['scheduledDate'] as String)
+          : null,
     );
   }
 }

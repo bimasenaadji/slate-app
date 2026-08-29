@@ -11,6 +11,7 @@ class TaskCard extends StatefulWidget {
   final VoidCallback onTap;
   final VoidCallback onToggle;
   final VoidCallback onDelete;
+  final bool isTomorrowCard;
 
   const TaskCard({
     super.key,
@@ -18,6 +19,7 @@ class TaskCard extends StatefulWidget {
     required this.onTap,
     required this.onToggle,
     required this.onDelete,
+    this.isTomorrowCard = false,
   });
 
   @override
@@ -88,26 +90,28 @@ class _TaskCardState extends State<TaskCard>
               key: ValueKey(widget.task.id),
               enabled: !_isDismissing,
 
-              // Swipe Right to Complete (Start Pane)
-              startActionPane: ActionPane(
-                motion: const DrawerMotion(),
-                extentRatio: 0.25,
-                children: [
-                  SlidableAction(
-                    onPressed: (context) => widget.onToggle(),
-                    backgroundColor: AppColors.successSoft,
-                    foregroundColor: AppColors.successBold,
-                    icon: widget.task.isDone
-                        ? Icons.undo_rounded
-                        : Icons.check_circle_rounded,
-                    label: widget.task.isDone ? 'Batal' : 'Selesai',
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(AppShapes.radiusLg),
-                      bottomLeft: Radius.circular(AppShapes.radiusLg),
+              // Swipe Right to Complete (Start Pane) - Disabled in Tomorrow dimension
+              startActionPane: widget.isTomorrowCard
+                  ? null
+                  : ActionPane(
+                      motion: const DrawerMotion(),
+                      extentRatio: 0.25,
+                      children: [
+                        SlidableAction(
+                          onPressed: (context) => widget.onToggle(),
+                          backgroundColor: AppColors.successSoft,
+                          foregroundColor: AppColors.successBold,
+                          icon: widget.task.isDone
+                              ? Icons.undo_rounded
+                              : Icons.check_circle_rounded,
+                          label: widget.task.isDone ? 'Batal' : 'Selesai',
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(AppShapes.radiusLg),
+                            bottomLeft: Radius.circular(AppShapes.radiusLg),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
 
               // Swipe Left to Delete (End Pane with Fluid Collapse)
               endActionPane: ActionPane(
@@ -158,6 +162,7 @@ class _TaskCardState extends State<TaskCard>
                       // Checklist Circle Component
                       _TaskChecklistCircle(
                         isDone: widget.task.isDone,
+                        isTomorrowCard: widget.isTomorrowCard,
                         isDismissing: _isDismissing,
                         onToggle: widget.onToggle,
                       ),
@@ -165,7 +170,10 @@ class _TaskCardState extends State<TaskCard>
 
                       // Title & Subtitle Content Component
                       Expanded(
-                        child: _TaskContent(task: widget.task),
+                        child: _TaskContent(
+                          task: widget.task,
+                          isTomorrowCard: widget.isTomorrowCard,
+                        ),
                       ),
                     ],
                   ),
@@ -182,17 +190,42 @@ class _TaskCardState extends State<TaskCard>
 /// Interactive checklist circle for completing/uncompleting tasks
 class _TaskChecklistCircle extends StatelessWidget {
   final bool isDone;
+  final bool isTomorrowCard;
   final bool isDismissing;
   final VoidCallback onToggle;
 
   const _TaskChecklistCircle({
     required this.isDone,
+    required this.isTomorrowCard,
     required this.isDismissing,
     required this.onToggle,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (isTomorrowCard) {
+      // In Tomorrow dimension: Show quiet crescent indicator (non-completable)
+      return Container(
+        width: 26,
+        height: 26,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: const Color(0xFFF0F3F8),
+          border: Border.all(
+            color: const Color(0xFFD2D6DC),
+            width: 1.5,
+          ),
+        ),
+        child: const Center(
+          child: Icon(
+            Icons.nightlight_round,
+            size: 13,
+            color: Color(0xFF81838A),
+          ),
+        ),
+      );
+    }
+
     return GestureDetector(
       onTap: isDismissing ? null : onToggle,
       behavior: HitTestBehavior.opaque,
@@ -225,8 +258,12 @@ class _TaskChecklistCircle extends StatelessWidget {
 /// Compact 2-line title with ellipsis and animated date subtitle
 class _TaskContent extends StatelessWidget {
   final TaskModel task;
+  final bool isTomorrowCard;
 
-  const _TaskContent({required this.task});
+  const _TaskContent({
+    required this.task,
+    this.isTomorrowCard = false,
+  });
 
   Color get _titleColor {
     if (task.isDone) {
@@ -239,6 +276,9 @@ class _TaskContent extends StatelessWidget {
   }
 
   String _formatDateTime(DateTime dateTime) {
+    if (isTomorrowCard) {
+      return 'Direncanakan untuk besok';
+    }
     try {
       final formatted =
           DateFormat('EEEE, d MMMM • HH:mm', 'id_ID').format(dateTime);
@@ -271,13 +311,13 @@ class _TaskContent extends StatelessWidget {
         ),
         const SizedBox(height: 4),
 
-        // Subtitle: Animated Date with Carry-Over Indicator
+        // Subtitle: Animated Date with Carry-Over / Tomorrow Indicator
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 600),
           child: Text(
             _formatDateTime(task.createdAt),
             key: ValueKey(
-              '${task.isCarriedOver}_${task.createdAt.millisecondsSinceEpoch}',
+              '${isTomorrowCard}_${task.isCarriedOver}_${task.createdAt.millisecondsSinceEpoch}',
             ),
             style: AppTypography.captionSecondary.copyWith(
               fontSize: 12,

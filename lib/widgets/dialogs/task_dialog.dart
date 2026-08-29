@@ -12,6 +12,7 @@ class TaskDialog extends StatefulWidget {
   final ValueChanged<String>? onEditSave;
   final String? initialText;
   final bool isEditMode;
+  final bool isTomorrowDefault;
 
   const TaskDialog({
     super.key,
@@ -19,16 +20,21 @@ class TaskDialog extends StatefulWidget {
     this.onEditSave,
     this.initialText,
     this.isEditMode = false,
+    this.isTomorrowDefault = false,
   });
 
   /// Displays the task creation dialog with elastic spring overshoot physics
   static Future<void> showCreate(
     BuildContext context, {
     required TaskAddCallback onAdd,
+    bool isTomorrowDefault = false,
   }) {
     return _show(
       context,
-      dialog: TaskDialog(onAdd: onAdd),
+      dialog: TaskDialog(
+        onAdd: onAdd,
+        isTomorrowDefault: isTomorrowDefault,
+      ),
       barrierLabel: AppConstants.newNoteTitle,
     );
   }
@@ -122,6 +128,7 @@ class _TaskDialogState extends State<TaskDialog> {
   @override
   void initState() {
     super.initState();
+    _isForTomorrow = widget.isTomorrowDefault;
     _controller = TextEditingController(text: widget.initialText ?? '');
 
     // Set cursor at the end of the text if editing

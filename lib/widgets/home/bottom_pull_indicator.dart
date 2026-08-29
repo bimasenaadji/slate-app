@@ -10,7 +10,7 @@ class BottomPullIndicator extends StatelessWidget {
   const BottomPullIndicator({
     super.key,
     required this.pullDistance,
-    this.threshold = 60.0,
+    this.threshold = 70.0,
   });
 
   @override

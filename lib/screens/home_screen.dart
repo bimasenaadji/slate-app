@@ -21,10 +21,11 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen>
     with WidgetsBindingObserver {
-  // Bottom pull-to-add drag state
+  // Bottom pull-to-add elastic drag state
   double _bottomPullDistance = 0.0;
-  static const double _pullThreshold = 60.0;
+  static const double _pullThreshold = 70.0;
   bool _hasReachedThreshold = false;
+  bool _isModalOpen = false;
 
   @override
   void initState() {
@@ -47,6 +48,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   void _openAddTaskModal() {
+    if (_isModalOpen) return; // Prevent duplicate modal overlapping
+    _isModalOpen = true;
+
     HapticFeedback.mediumImpact();
     TaskDialog.showCreate(context, onAdd: (title, isForTomorrow) {
       ref
@@ -60,7 +64,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           duration: const Duration(seconds: 2),
         );
       }
+    }).whenComplete(() {
+      if (mounted) {
+        _isModalOpen = false;
+      }
     });
+  }
+
+  /// Calculates non-linear rubber-band resistance for natural elastic tension
+  double _calculateRubberBandDistance(double rawDistance) {
+    const maxTension = 130.0;
+    const factor = 0.55;
+    return (rawDistance * factor).clamp(0.0, maxTension);
   }
 
   void _handlePointerRelease() {
@@ -106,8 +121,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         final overscroll =
                             notification.metrics.pixels -
                             notification.metrics.maxScrollExtent;
+                        final elasticDistance =
+                            _calculateRubberBandDistance(overscroll);
                         setState(() {
-                          _bottomPullDistance = overscroll.clamp(0.0, 110.0);
+                          _bottomPullDistance = elasticDistance;
                         });
 
                         if (_bottomPullDistance >= _pullThreshold &&
@@ -121,10 +138,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       }
                     } else if (notification is OverscrollNotification) {
                       if (notification.overscroll > 0) {
+                        final rawDistance =
+                            _bottomPullDistance + notification.overscroll;
+                        final elasticDistance =
+                            _calculateRubberBandDistance(rawDistance);
                         setState(() {
-                          _bottomPullDistance = (_bottomPullDistance +
-                                  notification.overscroll)
-                              .clamp(0.0, 110.0);
+                          _bottomPullDistance = elasticDistance;
                         });
 
                         if (_bottomPullDistance >= _pullThreshold &&

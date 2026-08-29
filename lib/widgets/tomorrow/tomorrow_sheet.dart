@@ -42,8 +42,12 @@ class _TomorrowSheetState extends ConsumerState<TomorrowSheet> {
     TaskDialog.showCreate(
       context,
       isTomorrowDefault: true,
-      onAdd: (title, isForTomorrow) {
-        ref.read(taskProvider.notifier).addTask(title, isForTomorrow: true);
+      onAdd: (title, isForTomorrow, reminderAnchor) {
+        ref.read(taskProvider.notifier).addTask(
+              title,
+              isForTomorrow: true,
+              reminderAnchor: reminderAnchor,
+            );
       },
     ).whenComplete(() {
       if (mounted) {
@@ -60,8 +64,14 @@ class _TomorrowSheetState extends ConsumerState<TomorrowSheet> {
     TaskDialog.showEdit(
       context,
       initialText: task.title,
-      onSave: (newTitle) =>
-          ref.read(taskProvider.notifier).updateTask(task.id, newTitle),
+      initialAnchor: task.reminderAnchor,
+      onSave: (newTitle, reminderAnchor) =>
+          ref.read(taskProvider.notifier).updateTask(
+                task.id,
+                newTitle,
+                reminderAnchor: reminderAnchor,
+                clearReminderAnchor: reminderAnchor == null,
+              ),
     ).whenComplete(() {
       if (mounted) {
         _isModalOpen = false;
@@ -156,8 +166,8 @@ class _SheetHeader extends StatelessWidget {
               Row(
                 children: [
                   const Icon(
-                    Icons.nightlight_round,
-                    size: 16,
+                    Icons.upcoming_outlined,
+                    size: 18,
                     color: Color(0xFF19191B),
                   ),
                   const SizedBox(width: 6),
@@ -225,7 +235,7 @@ class _TomorrowEmptyState extends StatelessWidget {
                 shape: BoxShape.circle,
               ),
               child: const Icon(
-                Icons.nightlight_outlined,
+                Icons.upcoming_outlined,
                 size: 28,
                 color: Color(0xFF81838A),
               ),

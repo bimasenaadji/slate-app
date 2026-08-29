@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme.dart';
 import '../../core/constants.dart';
+import '../../core/constants/time_anchor.dart';
 import '../../models/task_model.dart';
 
 class TaskCard extends StatefulWidget {
@@ -218,7 +220,7 @@ class _TaskChecklistCircle extends StatelessWidget {
         ),
         child: const Center(
           child: Icon(
-            Icons.nightlight_round,
+            Icons.upcoming_outlined,
             size: 13,
             color: Color(0xFF81838A),
           ),
@@ -255,7 +257,7 @@ class _TaskChecklistCircle extends StatelessWidget {
   }
 }
 
-/// Compact 2-line title with ellipsis and animated date subtitle
+/// Compact 2-line title with ellipsis and animated date subtitle & anchor badge
 class _TaskContent extends StatelessWidget {
   final TaskModel task;
   final bool isTomorrowCard;
@@ -311,21 +313,98 @@ class _TaskContent extends StatelessWidget {
         ),
         const SizedBox(height: 4),
 
-        // Subtitle: Animated Date with Carry-Over / Tomorrow Indicator
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 600),
-          child: Text(
-            _formatDateTime(task.createdAt),
-            key: ValueKey(
-              '${isTomorrowCard}_${task.isCarriedOver}_${task.createdAt.millisecondsSinceEpoch}',
+        // Subtitle: Animated Date with Carry-Over / Tomorrow Indicator & Mindful Anchor Badge
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 600),
+                child: Text(
+                  _formatDateTime(task.createdAt),
+                  key: ValueKey(
+                    '${isTomorrowCard}_${task.isCarriedOver}_${task.createdAt.millisecondsSinceEpoch}',
+                  ),
+                  style: AppTypography.captionSecondary.copyWith(
+                    fontSize: 12,
+                    color: AppColors.textSecondary.withValues(alpha: 0.8),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ),
-            style: AppTypography.captionSecondary.copyWith(
-              fontSize: 12,
-              color: AppColors.textSecondary.withValues(alpha: 0.8),
-            ),
-          ),
+            if (task.reminderAnchor != null && !task.isDone) ...[
+              const SizedBox(width: 8),
+              _AnchorBadge(
+                anchor: task.reminderAnchor!,
+                isTomorrowCard: isTomorrowCard,
+              ),
+            ],
+          ],
         ),
       ],
+    );
+  }
+}
+
+/// Minimalist capsule badge indicating the active Mindful Anchor with outline icons
+class _AnchorBadge extends StatelessWidget {
+  final String anchor;
+  final bool isTomorrowCard;
+
+  const _AnchorBadge({
+    required this.anchor,
+    this.isTomorrowCard = false,
+  });
+
+  bool get _isPast {
+    if (isTomorrowCard) return false;
+    final timeAnchor = TimeAnchor.fromKey(anchor);
+    if (timeAnchor == null) return false;
+    // Dim gently once current hour has surpassed the anchor target hour + 3 hours
+    return DateTime.now().hour >= (timeAnchor.targetHour + 3);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final timeAnchor = TimeAnchor.fromKey(anchor);
+    if (timeAnchor == null) return const SizedBox.shrink();
+
+    final isPast = _isPast;
+
+    return Opacity(
+      opacity: isPast ? 0.6 : 1.0,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: isPast ? const Color(0xFFF8FAFC) : const Color(0xFFF0F3F8),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isPast ? const Color(0xFFE5E7EB) : const Color(0xFFE2E8F0),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              timeAnchor.icon,
+              size: 11,
+              color: isPast ? const Color(0xFF94A3B8) : const Color(0xFF5A5C63),
+            ),
+            const SizedBox(width: 3.5),
+            Text(
+              timeAnchor.label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 10.5,
+                fontWeight: isPast ? FontWeight.w500 : FontWeight.w600,
+                color:
+                    isPast ? const Color(0xFF94A3B8) : const Color(0xFF4A5568),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

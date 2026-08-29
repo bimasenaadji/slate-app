@@ -26,7 +26,7 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
     _startMidnightTimer();
   }
 
-  // Load existing tasks from Box and execute Clean Slate & Carry-Over rules
+  // Load existing tasks from Box and execute Clean Slate, Carry-Over, & Tomorrow Queue rules
   void _loadTasksAndCheckMidnight() {
     final now = DateTime.now();
     final List<TaskModel> allTasks = [];
@@ -37,12 +37,31 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
       if (map != null && map is Map) {
         try {
           final task = TaskModel.fromMap(map);
+
+          // 1. Check if this task belongs to the Tomorrow Queue
+          if (task.scheduledDate != null) {
+            if (_isFutureDate(task.scheduledDate!, now)) {
+              // Still in the future -> keep in Hive, hidden from today's screen
+              continue;
+            } else {
+              // Scheduled date has arrived (00:00) -> promote to active today task!
+              final promotedTask = task.copyWith(
+                clearScheduledDate: true,
+                isCarriedOver: false,
+              );
+              _box.put(key, promotedTask.toMap());
+              allTasks.add(promotedTask);
+              continue;
+            }
+          }
+
+          // 2. Check yesterday tasks (Clean Slate & Automatic Carry-Over)
           if (_isBeforeToday(task.createdAt, now)) {
             if (task.isDone) {
-              // 1. Purge completed tasks from yesterday (Clean Slate)
+              // Purge completed tasks from yesterday (Clean Slate)
               keysToDelete.add(key);
             } else {
-              // 2. Automatic Carry-Over: Save active incomplete tasks with visual demotion
+              // Automatic Carry-Over: Save active incomplete tasks with visual demotion
               final carriedOverTask = task.copyWith(isCarriedOver: true);
               _box.put(key, carriedOverTask.toMap());
               allTasks.add(carriedOverTask);
@@ -81,9 +100,26 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
           now.month != _lastCheckedDay.month ||
           now.year != _lastCheckedDay.year) {
         _lastCheckedDay = now;
-        _loadTasksAndCheckMidnight();
+        _clearAllTasks();
       }
     });
+  }
+
+  // Executes midnight evaluation and clean slate carry-over rules
+  void _clearAllTasks() {
+    _loadTasksAndCheckMidnight();
+  }
+
+  // Helper method to check if a date is in the future
+  bool _isFutureDate(DateTime date, DateTime today) {
+    final localDate = date.toLocal();
+    final localToday = today.toLocal();
+    return localDate.year > localToday.year ||
+        (localDate.year == localToday.year &&
+            localDate.month > localToday.month) ||
+        (localDate.year == localToday.year &&
+            localDate.month == localToday.month &&
+            localDate.day > localToday.day);
   }
 
   // Helper method to check if a date is before today
@@ -98,18 +134,35 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
             localDate.day < localToday.day);
   }
 
-  // Add a new task at the top of the priority list
-  void addTask(String title) {
+  // Add a new task (Today or Tomorrow Queue)
+  void addTask(String title, {bool isForTomorrow = false}) {
     if (title.trim().isEmpty) return;
     
+    final now = DateTime.now();
+
+    if (isForTomorrow) {
+      final tomorrow = DateTime(now.year, now.month, now.day + 1);
+      final task = TaskModel(
+        id: now.microsecondsSinceEpoch.toString(),
+        title: title.trim(),
+        createdAt: now,
+        scheduledDate: tomorrow,
+        orderIndex: 0,
+        isCarriedOver: false,
+      );
+      _box.put(task.id, task.toMap());
+      // Do not add to state (Tomorrow Queue is hidden from today's list)
+      return;
+    }
+
     final minOrder = state.isEmpty
         ? 0
         : state.map((t) => t.orderIndex).reduce((a, b) => a < b ? a : b);
 
     final task = TaskModel(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      id: now.microsecondsSinceEpoch.toString(),
       title: title.trim(),
-      createdAt: DateTime.now(),
+      createdAt: now,
       orderIndex: minOrder - 1,
       isCarriedOver: false,
     );

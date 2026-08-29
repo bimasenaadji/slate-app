@@ -48,8 +48,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   void _openAddTaskModal() {
     HapticFeedback.mediumImpact();
-    TaskDialog.showCreate(context, onAdd: (title) {
-      ref.read(taskProvider.notifier).addTask(title);
+    TaskDialog.showCreate(context, onAdd: (title, isForTomorrow) {
+      ref
+          .read(taskProvider.notifier)
+          .addTask(title, isForTomorrow: isForTomorrow);
+      if (isForTomorrow) {
+        UndoSnackBar.show(
+          context,
+          message: 'Disimpan untuk besok.',
+          onUndo: () {},
+          duration: const Duration(seconds: 2),
+        );
+      }
     });
   }
 

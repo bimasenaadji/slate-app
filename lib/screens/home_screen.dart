@@ -281,6 +281,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                   child: TaskCard(
                                     key: ValueKey('task_card_${task.id}'),
                                     task: task,
+                                    onTap: () {
+                                      if (task.isDone || _isModalOpen) return;
+                                      _isModalOpen = true;
+                                      HapticFeedback.lightImpact();
+                                      TaskDialog.showEdit(
+                                        context,
+                                        initialText: task.title,
+                                        onSave: (newTitle) =>
+                                            notifier.updateTask(task.id, newTitle),
+                                      ).whenComplete(() {
+                                        if (mounted) {
+                                          _isModalOpen = false;
+                                        }
+                                      });
+                                    },
                                     onToggle: () {
                                       final willBeDone = !task.isDone;
                                       notifier.toggleTask(task.id);
@@ -302,8 +317,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                             notifier.restoreTask(task),
                                       );
                                     },
-                                    onEdit: (newTitle) =>
-                                        notifier.updateTask(task.id, newTitle),
                                   ),
                                 );
                               },

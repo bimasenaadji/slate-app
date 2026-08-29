@@ -1,11 +1,14 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants.dart';
 
+typedef TaskAddCallback = void Function(String title, bool isForTomorrow);
+
 /// Modal dialog with frosted glass backdrop for creating a new task
 class TaskDialog extends StatefulWidget {
-  final ValueChanged<String> onAdd;
+  final TaskAddCallback onAdd;
 
   const TaskDialog({
     super.key,
@@ -15,7 +18,7 @@ class TaskDialog extends StatefulWidget {
   /// Displays the task creation dialog
   static void showCreate(
     BuildContext context, {
-    required ValueChanged<String> onAdd,
+    required TaskAddCallback onAdd,
   }) {
     showGeneralDialog(
       context: context,
@@ -51,6 +54,7 @@ class TaskDialog extends StatefulWidget {
 class _TaskDialogState extends State<TaskDialog> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
+  bool _isForTomorrow = false;
 
   @override
   void initState() {
@@ -73,7 +77,7 @@ class _TaskDialogState extends State<TaskDialog> {
   void _submit() {
     final text = _controller.text.trim();
     if (text.isNotEmpty) {
-      widget.onAdd(text);
+      widget.onAdd(text, _isForTomorrow);
     }
     Navigator.of(context).pop();
   }
@@ -110,15 +114,72 @@ class _TaskDialogState extends State<TaskDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Modal Title
-                Text(
-                  AppConstants.newNoteTitle,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFF1E1E1E),
-                    letterSpacing: -0.2,
-                  ),
+                // Header: Modal Title & Crescent Moon Tomorrow Toggle
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      AppConstants.newNoteTitle,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF1E1E1E),
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+
+                    // Tomorrow Queue Crescent Moon Toggle
+                    GestureDetector(
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        setState(() {
+                          _isForTomorrow = !_isForTomorrow;
+                        });
+                      },
+                      behavior: HitTestBehavior.opaque,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _isForTomorrow
+                              ? const Color(0xFF19191B)
+                              : const Color(0xFFF0F3F8),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _isForTomorrow
+                                  ? Icons.nightlight_round
+                                  : Icons.nightlight_outlined,
+                              size: 15,
+                              color: _isForTomorrow
+                                  ? Colors.white
+                                  : const Color(0xFF81838A),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              'Besok',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                fontWeight: _isForTomorrow
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: _isForTomorrow
+                                    ? Colors.white
+                                    : const Color(0xFF81838A),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 14),
 
@@ -137,7 +198,9 @@ class _TaskDialogState extends State<TaskDialog> {
                   maxLines: 4,
                   minLines: 1,
                   decoration: InputDecoration(
-                    hintText: AppConstants.inputPlaceholder,
+                    hintText: _isForTomorrow
+                        ? 'Tulis untuk besok...'
+                        : AppConstants.inputPlaceholder,
                     hintStyle: GoogleFonts.plusJakartaSans(
                       fontSize: 15,
                       fontWeight: FontWeight.w400,

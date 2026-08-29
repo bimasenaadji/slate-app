@@ -111,15 +111,21 @@ class _UndoToastWidgetState extends State<_UndoToastWidget>
 
   @override
   Widget build(BuildContext context) {
-    // Dynamically calculate Android 3-button nav / iOS home indicator height
-    final systemBottomInset = MediaQuery.paddingOf(context).bottom;
+    final mediaQuery = MediaQuery.of(context);
+    final systemBottomInset = mediaQuery.padding.bottom;
+    final screenWidth = mediaQuery.size.width;
+
+    // Responsive position: above home indicator or bottom navigation bar
     final effectiveBottom =
         systemBottomInset > 0 ? systemBottomInset + 16.0 : 28.0;
 
+    // Adaptive width: dynamically scales between 280px and 420px to prevent text truncation
+    final maxToastWidth = (screenWidth - 32.0).clamp(280.0, 420.0);
+
     return Positioned(
       bottom: effectiveBottom,
-      left: 0,
-      right: 0,
+      left: 16,
+      right: 16,
       child: SlideTransition(
         position: Tween<Offset>(
           begin: const Offset(0, 0.45),
@@ -137,18 +143,18 @@ class _UndoToastWidgetState extends State<_UndoToastWidget>
             child: Material(
               color: Colors.transparent,
               child: Container(
-                constraints: const BoxConstraints(maxWidth: 340),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
+                constraints: BoxConstraints(
+                  minWidth: 220,
+                  maxWidth: maxToastWidth,
                 ),
+                padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(30.0),
                   boxShadow: [
-                    // Primary ambient elevation shadow (smooth & natural)
+                    // Primary ambient elevation shadow
                     BoxShadow(
-                      color: const Color(0xFF19191B).withValues(alpha: 0.12),
+                      color: const Color(0xFF19191B).withValues(alpha: 0.14),
                       offset: const Offset(0, 10),
                       blurRadius: 28,
                       spreadRadius: -2,
@@ -177,21 +183,22 @@ class _UndoToastWidgetState extends State<_UndoToastWidget>
                         shape: BoxShape.circle,
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
 
-                    // Context message text
+                    // Adaptive context message text
                     Flexible(
                       child: Text(
                         widget.message,
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 13.5,
+                          fontSize: 13.0,
                           fontWeight: FontWeight.w600,
                           color: const Color(0xFF1E1E1E),
                         ),
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
 
                     // Pill action button
                     Material(
@@ -202,7 +209,7 @@ class _UndoToastWidgetState extends State<_UndoToastWidget>
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 14,
-                            vertical: 6,
+                            vertical: 7,
                           ),
                           decoration: BoxDecoration(
                             color: const Color(0xFF19191B),
@@ -211,7 +218,7 @@ class _UndoToastWidgetState extends State<_UndoToastWidget>
                           child: Text(
                             'Batalkan',
                             style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12.5,
+                              fontSize: 12.0,
                               fontWeight: FontWeight.w700,
                               color: Colors.white,
                             ),

@@ -4,6 +4,7 @@ class TaskModel {
   final bool isDone;
   final DateTime createdAt;
   final int orderIndex;
+  final bool isCarriedOver;
 
   TaskModel({
     required this.id,
@@ -11,6 +12,7 @@ class TaskModel {
     this.isDone = false,
     required this.createdAt,
     this.orderIndex = 0,
+    this.isCarriedOver = false,
   });
 
   TaskModel copyWith({
@@ -19,6 +21,7 @@ class TaskModel {
     bool? isDone,
     DateTime? createdAt,
     int? orderIndex,
+    bool? isCarriedOver,
   }) {
     return TaskModel(
       id: id ?? this.id,
@@ -26,6 +29,7 @@ class TaskModel {
       isDone: isDone ?? this.isDone,
       createdAt: createdAt ?? this.createdAt,
       orderIndex: orderIndex ?? this.orderIndex,
+      isCarriedOver: isCarriedOver ?? this.isCarriedOver,
     );
   }
 
@@ -36,6 +40,7 @@ class TaskModel {
       'isDone': isDone,
       'createdAt': createdAt.toIso8601String(),
       'orderIndex': orderIndex,
+      'isCarriedOver': isCarriedOver,
     };
   }
 
@@ -46,6 +51,7 @@ class TaskModel {
       isDone: map['isDone'] as bool? ?? false,
       createdAt: DateTime.parse(map['createdAt'] as String),
       orderIndex: map['orderIndex'] as int? ?? 0,
+      isCarriedOver: map['isCarriedOver'] as bool? ?? false,
     );
   }
 }

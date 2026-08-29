@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive/hive.dart';
 import '../models/task_model.dart';
+import '../services/notification_service.dart';
 
 // Provider for the Hive Box
 final taskBoxProvider = Provider<Box>((ref) {
@@ -38,6 +39,7 @@ final tomorrowTasksProvider = Provider<List<TaskModel>>((ref) {
 
 class TaskNotifier extends StateNotifier<List<TaskModel>> {
   final Box _box;
+  final NotificationService _notifService = NotificationService();
   Timer? _midnightTimer;
   DateTime _lastCheckedDay = DateTime.now();
   void Function()? onMidnightMagicTriggered;
@@ -45,6 +47,7 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
   TaskNotifier(this._box) : super([]) {
     _loadTasksAndCheckMidnight();
     _startMidnightTimer();
+    _notifService.init();
   }
 
   // Load existing tasks from Box and execute Clean Slate, Carry-Over, & Tomorrow Queue rules
@@ -78,12 +81,16 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
 
           // 2. Check yesterday tasks (Clean Slate & Automatic Carry-Over)
           if (_isBeforeToday(task.createdAt, now)) {
+            _notifService.cancelNotification(task.id);
             if (task.isDone) {
               // Purge completed tasks from yesterday (Clean Slate)
               keysToDelete.add(key);
             } else {
               // Automatic Carry-Over: Save active incomplete tasks with visual demotion
-              final carriedOverTask = task.copyWith(isCarriedOver: true);
+              final carriedOverTask = task.copyWith(
+                isCarriedOver: true,
+                clearReminderAnchor: true, // Reset anchor on carry-over
+              );
               _box.put(key, carriedOverTask.toMap());
               allTasks.add(carriedOverTask);
             }
@@ -164,9 +171,14 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
             localDate.day < localToday.day);
   }
 
-  // Add a new task (Today or Tomorrow Queue)
-  void addTask(String title, {bool isForTomorrow = false}) {
-    if (title.trim().isEmpty) return;
+  // Add a new task (Today or Tomorrow Queue with optional Mindful Anchor)
+  void addTask(
+    String title, {
+    bool isForTomorrow = false,
+    String? reminderAnchor,
+  }) {
+    final trimmed = title.trim();
+    if (trimmed.isEmpty) return;
 
     final now = DateTime.now();
 
@@ -174,13 +186,24 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
       final tomorrow = DateTime(now.year, now.month, now.day + 1);
       final task = TaskModel(
         id: now.microsecondsSinceEpoch.toString(),
-        title: title.trim(),
+        title: trimmed,
         createdAt: now,
         scheduledDate: tomorrow,
         orderIndex: 0,
         isCarriedOver: false,
+        reminderAnchor: reminderAnchor,
       );
       _box.put(task.id, task.toMap());
+
+      if (reminderAnchor != null) {
+        _notifService.scheduleAnchorNotification(
+          taskId: task.id,
+          title: task.title,
+          anchor: reminderAnchor,
+          isForTomorrow: true,
+        );
+      }
+
       state = [...state]; // Triggers tomorrowTasksProvider update
       return;
     }
@@ -191,12 +214,23 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
 
     final task = TaskModel(
       id: now.microsecondsSinceEpoch.toString(),
-      title: title.trim(),
+      title: trimmed,
       createdAt: now,
       orderIndex: minOrder - 1,
       isCarriedOver: false,
+      reminderAnchor: reminderAnchor,
     );
     _box.put(task.id, task.toMap());
+
+    if (reminderAnchor != null) {
+      _notifService.scheduleAnchorNotification(
+        taskId: task.id,
+        title: task.title,
+        anchor: reminderAnchor,
+        isForTomorrow: false,
+      );
+    }
+
     state = [task, ...state];
   }
 
@@ -225,8 +259,13 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
     state = persistedList;
   }
 
-  // Update task title (Edit Task) & Re-activate Carry-Over task
-  void updateTask(String id, String newTitle) {
+  // Update task title & Mindful Anchor
+  void updateTask(
+    String id,
+    String newTitle, {
+    String? reminderAnchor,
+    bool clearReminderAnchor = false,
+  }) {
     final trimmed = newTitle.trim();
     if (trimmed.isEmpty) return;
 
@@ -237,15 +276,38 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
         final updated = existingTask.copyWith(
           title: trimmed,
           isCarriedOver: false,
+          reminderAnchor: reminderAnchor,
+          clearReminderAnchor: clearReminderAnchor,
         );
         _box.put(id, updated.toMap());
+
+        // Update notification schedule
+        final finalAnchor = clearReminderAnchor
+            ? null
+            : (reminderAnchor ?? existingTask.reminderAnchor);
+
+        if (finalAnchor != null) {
+          _notifService.scheduleAnchorNotification(
+            taskId: updated.id,
+            title: updated.title,
+            anchor: finalAnchor,
+            isForTomorrow: updated.scheduledDate != null,
+          );
+        } else {
+          _notifService.cancelNotification(updated.id);
+        }
       } catch (_) {}
     }
 
     state = [
       for (final task in state)
         if (task.id == id)
-          task.copyWith(title: trimmed, isCarriedOver: false)
+          task.copyWith(
+            title: trimmed,
+            isCarriedOver: false,
+            reminderAnchor: reminderAnchor,
+            clearReminderAnchor: clearReminderAnchor,
+          )
         else
           task,
     ];
@@ -257,8 +319,12 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
       for (final task in state)
         if (task.id == id)
           (() {
-            final updated = task.copyWith(isDone: !task.isDone);
+            final willBeDone = !task.isDone;
+            final updated = task.copyWith(isDone: willBeDone);
             _box.put(id, updated.toMap());
+            if (willBeDone) {
+              _notifService.cancelNotification(id);
+            }
             return updated;
           })()
         else
@@ -268,6 +334,7 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
 
   // Delete a task (from both Today and Tomorrow queue)
   void deleteTask(String id) {
+    _notifService.cancelNotification(id);
     _box.delete(id);
     state = state.where((task) => task.id != id).toList();
   }
@@ -275,6 +342,15 @@ class TaskNotifier extends StateNotifier<List<TaskModel>> {
   // Restore a previously deleted task at its exact orderIndex (Undo Action)
   void restoreTask(TaskModel task) {
     _box.put(task.id, task.toMap());
+    if (task.reminderAnchor != null && !task.isDone) {
+      _notifService.scheduleAnchorNotification(
+        taskId: task.id,
+        title: task.title,
+        anchor: task.reminderAnchor!,
+        isForTomorrow: task.scheduledDate != null,
+      );
+    }
+
     if (task.scheduledDate == null) {
       if (state.any((t) => t.id == task.id)) return;
       final updatedList = [...state, task];
